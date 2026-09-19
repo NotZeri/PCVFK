@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCVFK - Vehicle Forge Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --ink:#0b0e12; --panel:rgba(9,12,16,.62); --line:rgba(255,255,255,.14);
+    --txt:#e9e5da; --dim:#9aa08f; --amber:#ffb454; --green:#7ddc95; --red:#ff5d5d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--ink)}
+  body{font-family:'IBM Plex Mono',monospace;color:var(--txt);font-size:13px}
+  #scene{position:fixed;inset:0;display:block}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+
+  #hud{position:fixed;inset:0;pointer-events:none;user-select:none;opacity:0;transition:opacity .4s}
+  #hud.on{opacity:1}
+  #cross{position:absolute;left:50%;top:50%;width:0;height:0}
+  .c-dot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;background:var(--txt);border-radius:50%;transition:transform .12s,background .12s}
+  .c-b{position:absolute;width:9px;height:9px;border:1.5px solid rgba(233,229,218,.85);transition:all .14s;opacity:.9}
+  .c-tl{left:-16px;top:-16px;border-right:none;border-bottom:none}
+  .c-tr{right:-16px;top:-16px;left:7px;border-left:none;border-bottom:none}
+  .c-bl{left:-16px;top:7px;border-right:none;border-top:none}
+  .c-br{left:7px;top:7px;border-left:none;border-top:none}
+  #cross[data-st="aim"] .c-b{border-color:var(--amber);transform:scale(1.35)}
+  #cross[data-st="aim"] .c-dot{background:var(--amber)}
+  #cross[data-st="hold"] .c-b{transform:scale(.62);border-color:var(--amber)}
+  #cross[data-st="hold"] .c-dot{background:var(--amber);transform:scale(1.4);border-radius:0}
+  #cross[data-st="prec"] .c-b{transform:scale(1.5) rotate(45deg);border-color:var(--green)}
+  #cross[data-st="prec"] .c-dot{background:var(--green)}
+  #cross[data-st="wire"] .c-b{transform:rotate(45deg) scale(1.1);border-color:var(--amber)}
+  #aimLabel{position:absolute;top:26px;left:50%;transform:translateX(-50%);white-space:nowrap;
+    font-size:11px;letter-spacing:.08em;color:var(--txt);text-shadow:0 1px 2px rgba(0,0,0,.7)}
+  #aimLabel b{color:var(--amber)}
+  #stats{position:absolute;top:16px;right:16px;text-align:right;display:flex;flex-direction:column;gap:4px}
+  #stats div{background:var(--panel);border:1px solid var(--line);padding:3px 9px;font-size:11px;letter-spacing:.1em;backdrop-filter:blur(6px)}
+  #stats b{color:var(--amber);font-weight:600;margin-left:8px}
+  #stTestRow{border-color:var(--amber)!important;color:var(--amber)}
+  #stNetRow{color:var(--green)}
+  #hints{position:absolute;left:16px;bottom:16px;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--dim);letter-spacing:.05em;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+  .k{display:inline-block;border:1px solid var(--line);background:var(--panel);padding:0 6px;margin-right:4px;color:var(--txt);font-size:10px;line-height:17px;backdrop-filter:blur(4px)}
+  #banner{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:var(--panel);
+    border:1px solid var(--amber);color:var(--amber);padding:5px 18px;letter-spacing:.35em;font-size:12px;backdrop-filter:blur(6px)}
+  #banner[hidden]{display:none}
+  #toasts{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+  .toast{background:var(--panel);border:1px solid var(--line);padding:5px 16px;font-size:12px;letter-spacing:.06em;
+    backdrop-filter:blur(6px);animation:tin .18s ease-out;white-space:nowrap}
+  .toast.warn{border-color:var(--red);color:var(--red)}
+  .toast.good{border-color:var(--green);color:var(--green)}
+  @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+  #askbox{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:70;
+    background:var(--panel);border:1px solid var(--amber);padding:14px 22px;backdrop-filter:blur(10px);
+    display:none;text-align:center}
+  #askbox.open{display:block}
+  #askbox .q{font-size:13px;letter-spacing:.08em;color:var(--txt)}
+  #askbox .q b{color:var(--amber)}
+  #askbox .keys{margin-top:10px;font-size:11px;color:var(--dim);letter-spacing:.15em}
+  #askbox .keys b{color:var(--green)}
+
+  #pilot{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);width:360px;
+    background:var(--panel);border:1px solid var(--line);padding:10px 14px;backdrop-filter:blur(8px)}
+  #pilot[hidden]{display:none}
+  .p-row{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;color:var(--dim);margin-bottom:7px}
+  .p-row b{color:var(--txt);font-weight:600}
+  #pPwr.ok{color:var(--green)} #pPwr.bad{color:var(--red);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .p-bar{height:7px;border:1px solid var(--line);margin:2px 0 7px}
+  .p-bar i{display:block;height:100%;background:var(--amber);width:100%;transition:width .15s}
+
+  #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(5,7,10,.35);backdrop-filter:blur(10px);z-index:40}
+  #menu[hidden]{display:none}
+  .m-frame{width:min(960px,94vw);height:min(620px,90vh);display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+  .m-frame header{display:flex;align-items:center;gap:26px;padding:14px 22px;border-bottom:1px solid var(--line)}
+  .m-logo{font-family:'Oswald',sans-serif;font-weight:700;font-size:20px;letter-spacing:.32em;color:var(--amber)}
+  .m-frame nav{display:flex;gap:4px;flex:1}
+  .m-frame nav button{padding:7px 18px;letter-spacing:.18em;font-size:11px;color:var(--dim);border:1px solid transparent}
+  .m-frame nav button.act{color:var(--txt);border-color:var(--line);background:rgba(255,255,255,.05)}
+  #mClose{padding:7px 18px;border:1px solid var(--amber);color:var(--amber);letter-spacing:.18em;font-size:11px}
+  #mClose:hover{background:var(--amber);color:var(--ink)}
+  .m-body{flex:1;display:flex;min-height:0}
+  #mRail{width:170px;border-right:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column}
+  #mRail button{text-align:left;padding:10px 20px;letter-spacing:.16em;font-size:11px;color:var(--dim);border-left:2px solid transparent}
+  #mRail button.act{color:var(--amber);border-left-color:var(--amber);background:rgba(255,180,84,.06)}
+  #mRail button:hover{color:var(--txt)}
+  #mMain{flex:1;overflow-y:auto;padding:18px 22px}
+  #mMain::-webkit-scrollbar{width:9px}
+  #mMain::-webkit-scrollbar-thumb{background:var(--line)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+  .card{display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;cursor:pointer;
+    border:1px solid var(--line);background:rgba(255,255,255,.03);transition:border-color .12s,background .12s}
+  .card:hover{border-color:var(--amber);background:rgba(255,180,84,.07)}
+  .card canvas{flex:none;width:64px;height:64px;border:1px solid var(--line);background:rgba(0,0,0,.25)}
+  .c-name{font-weight:600;letter-spacing:.08em;font-size:12px}
+  .c-spec{color:var(--dim);font-size:10.5px;margin-top:4px;line-height:1.5}
+  .card.tool .t-ico{flex:none;width:64px;height:64px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--amber);font-size:10px;letter-spacing:.1em;text-align:center}
+  .x-btn{flex:none;width:22px;height:22px;border:1px solid var(--line);color:var(--dim);font-size:12px;line-height:1}
+  .x-btn:hover{border-color:var(--red);color:var(--red)}
+  .set-sec{margin:20px 0 4px;color:var(--amber);letter-spacing:.22em;font-size:11px;
+    border-bottom:1px solid var(--line);padding-bottom:6px}
+  .set-sec:first-child{margin-top:0}
+  .set-note{color:var(--dim);font-size:11px;line-height:1.7;margin:10px 0 4px}
+  .set-row{display:flex;align-items:center;gap:16px;padding:11px 2px;border-bottom:1px solid var(--line)}
+  .set-row label{width:190px;letter-spacing:.08em;font-size:12px;color:var(--txt)}
+  .set-row .val{width:64px;text-align:right;color:var(--amber)}
+  .set-row input[type=range]{flex:1;accent-color:var(--amber);height:3px}
+  .seg{display:flex;gap:4px;flex:1}
+  .seg button{padding:5px 13px;border:1px solid var(--line);color:var(--dim);font-size:10.5px;letter-spacing:.1em}
+  .seg button.act{border-color:var(--amber);color:var(--amber)}
+  .help h4{color:var(--amber);letter-spacing:.22em;font-size:11px;margin:20px 0 8px}
+  .help h4:first-child{margin-top:0}
+  .help p,.help li{color:#c9c5ba;line-height:1.75;font-size:12.5px}
+  .help ul{padding-left:18px}
+  .m-frame footer{display:flex;justify-content:space-between;padding:10px 22px;border-top:1px solid var(--line);color:var(--dim);font-size:10.5px;letter-spacing:.12em}
+
+  /* main menu (VFK style) */
+  #main-menu{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;
+    background:linear-gradient(to bottom,#4a90e2 0%,#87ceeb 60%,#b0e0e6 100%)}
+  #main-menu[hidden]{display:none}
+  .menu-stars{position:absolute;inset:0;
+    background-image:radial-gradient(white 1px,transparent 1px),radial-gradient(white 1px,transparent 1px);
+    background-size:50px 50px,100px 100px;background-position:0 0,25px 25px;opacity:.4}
+  .menu-content{text-align:center;z-index:2}
+  .menu-title{font-family:'Oswald',sans-serif;font-size:clamp(70px,13vw,120px);font-weight:700;color:#fff;
+    letter-spacing:12px;text-shadow:2px 2px 0 rgba(0,0,0,.3);line-height:1;margin-left:12px}
+  .menu-subtitle{font-family:'Oswald',sans-serif;font-size:16px;color:#f0f8ff;letter-spacing:12px;margin:12px 0 48px;text-shadow:1px 1px 2px rgba(0,0,0,.2)}
+  .menu-btn{background:transparent;border:none;color:#fff;font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;
+    letter-spacing:4px;padding:12px 20px;margin:6px 0;cursor:pointer;transition:all .2s;text-transform:uppercase;
+    display:block;width:min(360px,80vw);text-shadow:1px 1px 3px rgba(0,0,0,.3)}
+  .menu-btn:hover{color:#ffcc00;text-shadow:0 0 15px rgba(255,255,255,.8)}
+  .menu-footer{position:absolute;bottom:20px;left:40px;z-index:2}
+  .menu-footer .menu-btn{font-size:18px;text-align:left;padding:8px 0;width:auto;margin:0}
+  .menu-credits{position:absolute;bottom:40px;right:40px;z-index:2;font-family:'Oswald',sans-serif;font-size:12px;
+    letter-spacing:2px;color:rgba(255,255,255,.75);text-shadow:1px 1px 2px rgba(0,0,0,.25);text-transform:uppercase}
+
+  .mm-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#2b2b35;border:3px solid #111118;
+    box-shadow:6px 6px 0 #111118;padding:26px;z-index:1001;width:min(420px,92vw);max-height:82vh;overflow-y:auto;display:none}
+  .mm-modal.open{display:block}
+  .mm-modal .title{text-align:center;margin-bottom:18px;color:#ffcc00;font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:2px}
+  .mm-row{margin-top:14px}
+  .mm-label{font-size:11px;color:#aaa;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:1px}
+  .mm-btns{display:flex;gap:8px}
+  .mm-btn{flex:1;padding:10px;background:#3a3a45;border:2px solid #111118;color:#aaa;cursor:pointer;
+    font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;font-size:12px}
+  .mm-btn.active{background:#20d0e8;color:#111118}
+  .mm-note{font-size:10px;color:#777;margin-top:6px;line-height:1.5}
+  .mm-modal input[type=range]{width:100%;accent-color:#20d0e8}
+  .mm-close{display:block;width:100%;margin-top:22px;padding:12px;background:#20d0e8;color:#111118;border:2px solid #111118;
+    font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase}
+  .mm-close:hover{background:#40e0ff}
+  #joinCode{width:100%;padding:10px;background:#1a1a1f;border:2px solid #111118;color:#fff;
+    font-family:'IBM Plex Mono',monospace;text-align:center;font-size:18px;letter-spacing:6px;text-transform:uppercase}
+  #joinStatus{font-size:11px;color:#aaa;text-align:center;margin-top:10px;min-height:14px}
+  .copy-row{display:flex;align-items:center;gap:8px}
+  .copy-row input{flex:1;padding:10px;background:#1a1a1f;border:2px solid #111118;color:#fff;
+    font-family:'IBM Plex Mono',monospace;text-align:center;font-size:13px;letter-spacing:4px}
+  .copy-row button{width:70px;padding:10px 0}
+
+  /* chat */
+  #chatBar{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);width:min(480px,90vw);display:none;z-index:60}
+  #chatBar.open{display:flex}
+  #chatBar input{flex:1;padding:9px 12px;background:var(--panel);border:1px solid var(--amber);color:var(--txt);
+    font-size:12px;font-family:'IBM Plex Mono',monospace;outline:none;backdrop-filter:blur(6px)}
+  #chatLog{position:fixed;bottom:112px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:59;pointer-events:none}
+  .chat-msg{background:rgba(9,12,16,.55);border:1px solid var(--line);padding:4px 12px;font-size:12px;
+    backdrop-filter:blur(4px);white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+  .chat-msg b{color:var(--amber)}
+
+  #fatal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b0e12;z-index:2000;padding:20px;text-align:center;color:var(--red);line-height:2}
+  #fatal[hidden]{display:none}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="hud">
+  <div id="cross" data-st="">
+    <i class="c-dot"></i><i class="c-b c-tl"></i><i class="c-b c-tr"></i><i class="c-b c-bl"></i><i class="c-b c-br"></i>
+    <div id="aimLabel"></div>
+  </div>
+  <div id="stats">
+    <div id="stNetRow">NET<b id="stNet">OFFLINE</b></div>
+    <div id="stTestRow" style="display:none">TEST<b id="stTest"></b></div>
+    <div>ALT<b id="stAlt">0 m</b></div>
+    <div>SPD<b id="stSpd">0.0</b></div>
+    <div id="stFpsRow">FPS<b id="stFps">60</b></div>
+  </div>
+  <div id="hints"></div>
+  <div id="banner" hidden></div>
+  <div id="toasts"></div>
+  <div id="chatLog"></div>
+  <div id="askbox">
+    <div class="q" id="askText"></div>
+    <div class="keys">PRESS <b>Y</b> TO ACCEPT · <b>N</b> TO REFUSE</div>
+  </div>
+  <div id="pilot" hidden>
+    <div class="p-row"><span>VEL <b id="pVel">0.0</b> m/s</span><span>ALT <b id="pAlt">0</b> m</span><span id="pPwr" class="ok">PWR OK</span></div>
+    <div class="p-bar"><i id="pFuelBar"></i></div>
+    <div class="p-row"><span id="pGrp">-</span><span id="pFuelTxt">FUEL 0/0</span></div>
+  </div>
+</div>
+
+<div id="menu" hidden>
+  <div class="m-frame">
+    <header>
+      <div class="m-logo">PCVFK</div>
+      <nav>
+        <button data-tab="build" class="act">BUILD</button>
+        <button data-tab="settings">SETTINGS</button>
+        <button data-tab="help">HELP</button>
+      </nav>
+      <button id="mClose">RESUME&nbsp;&nbsp;[M]</button>
+    </header>
+    <div class="m-body">
+      <aside id="mRail"></aside>
+      <section id="mMain"></section>
+    </div>
+    <footer><span>M / ESC - RESUME</span><span id="mInfo"></span></footer>
+  </div>
+</div>
+
+<div id="main-menu">
+  <div class="menu-stars"></div>
+  <div class="menu-content">
+    <h1 class="menu-title">VFK</h1>
+    <h2 class="menu-subtitle">VEHICLE FORGE KIT PC</h2>
+    <button class="menu-btn" id="mmSingle">SINGLE PLAYER</button>
+    <button class="menu-btn" id="mmHost">HOST</button>
+    <button class="menu-btn" id="mmJoin">JOIN</button>
+  </div>
+  <div class="menu-footer">
+    <button class="menu-btn" id="mmSettings">SETTINGS</button>
+  </div>
+  <div class="menu-credits">lunch · NotZeri · 5_5</div>
+</div>
+
+<div id="mm-settings" class="mm-modal">
+  <div class="title">SETTINGS</div>
+  <div id="mm-settings-body"></div>
+  <button class="mm-close" id="setClose">CLOSE</button>
+</div>
+
+<div id="mm-join" class="mm-modal">
+  <div class="title">JOIN GAME</div>
+  <div class="mm-row">
+    <div class="mm-label">Enter Host Code</div>
+    <input id="joinCode" maxlength="5" placeholder="ABCDE" autocomplete="off" spellcheck="false">
+  </div>
+  <div id="joinStatus"></div>
+  <button class="mm-close" id="joinGo">CONNECT</button>
+  <button class="mm-close" id="joinCancel" style="background:#3a3a45;color:#aaa;margin-top:10px">CANCEL</button>
+</div>
+
+<div id="chatBar"><input id="chatInput" maxlength="120" placeholder="say something...  (Enter to send, Esc to close)" autocomplete="off"></div>
+
+<div id="fatal" hidden><div>
+  <b>PCVFK failed to start.</b><br>
+  This sandbox loads Three.js, cannon-es and PeerJS from CDNs -<br>
+  check your internet connection and reload.<br><br>
+  <span id="fatalMsg"></span>
+</div></div>
+
+<script>
+  window.__bootTimer = setTimeout(()=>{ document.getElementById('fatal').hidden = false; }, 9000);
+  window.addEventListener('error', e=>{ if(!window.__pcvfkBooted){ document.getElementById('fatal').hidden=false; document.getElementById('fatalMsg').textContent = e.message||''; } });
+</script>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
+
+/* ═════════ 1. CONSTANTS & SETTINGS ═════════ */
+const S=0.5, FIXED=1/60, G0=9.81, GZERO=2600, SPACE_A=600, SPACE_B=2400, FUEL_MASS=0.02;
+const GROUND_R=900;
+const GRP={GROUND:1,PART:2,PLAYER:4,STATIC:8};
+const DIRS=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+const CV=CANNON.Vec3, CQ=CANNON.Quaternion;
+const TAU=Math.PI*2;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+const gAt=y=>G0*Math.pow(Math.max(0,1-y/GZERO),1.35);
+const qE=(x=0,y=0,z=0)=>{const q=new CQ();q.setFromEuler(x,y,z);return q};
+const QID=new CQ(0,0,0,1);
+const el=id=>document.getElementById(id);
+const _q3=new THREE.Quaternion(), _tq3=new THREE.Quaternion();
+function qSlerp(q,target,t,out){
+  if(typeof q.slerp==='function'){ q.slerp(target,t,out); return out; }
+  out.x=lerp(q.x,target.x,t); out.y=lerp(q.y,target.y,t);
+  out.z=lerp(q.z,target.z,t); out.w=lerp(q.w,target.w,t);
+  return out;
+}
+
+const SET = Object.assign({fov:78, sens:1, scale:1, shadows:2048, clouds:true, sound:true, fps:true,
+  weight:true, mgyro:false, epower:1, camsmooth:0},
+  JSON.parse(localStorage.getItem('pcvfk_set')||localStorage.getItem('apogee_set')||'{}'));
+const saveSet=()=>localStorage.setItem('pcvfk_set', JSON.stringify(SET));
+
+/* ═════════ 2. AUDIO ═════════ */
+let AC=null, masterG=null, engG=null, engLP=null;
+function audioInit(){
+  if(AC) return;
+  try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  masterG=AC.createGain(); masterG.gain.value=SET.sound?0.4:0; masterG.connect(AC.destination);
+  const len=AC.sampleRate*2, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  const src=AC.createBufferSource(); src.buffer=buf; src.loop=true;
+  engLP=AC.createBiquadFilter(); engLP.type='lowpass'; engLP.frequency.value=320; engLP.Q.value=1.2;
+  engG=AC.createGain(); engG.gain.value=0;
+  src.connect(engLP); engLP.connect(engG); engG.connect(masterG); src.start();
+}
+function blip(f=880,dur=.06,type='square',vol=.12){
+  if(!AC||!SET.sound) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type=type; o.frequency.value=f; g.gain.setValueAtTime(vol,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+dur);
+  o.connect(g); g.connect(masterG); o.start(); o.stop(AC.currentTime+dur);
+}
+const Sfx={ click:()=>blip(700,.04,'square',.08), snap:()=>blip(1180,.045,'triangle',.09),
+  weld:()=>{blip(160,.12,'sine',.3);blip(90,.18,'triangle',.2)}, del:()=>blip(220,.12,'sawtooth',.1),
+  deny:()=>blip(180,.12,'square',.1), good:()=>blip(980,.09,'triangle',.12) };
+
+/* ═════════ 3. TOASTS / HINTS / CHAT ═════════ */
+function toast(msg,cls=''){
+  const t=document.createElement('div'); t.className='toast '+cls; t.textContent=msg;
+  const box=el('toasts'); box.appendChild(t); while(box.children.length>3) box.removeChild(box.firstChild);
+  setTimeout(()=>{t.style.transition='opacity .4s';t.style.opacity='0';setTimeout(()=>t.remove(),420)},1700);
+}
+const HINTS={
+  def:`<span class="k">WASD</span>move <span class="k">SPACE</span>jump <span class="k">V</span>noclip <span class="k">M</span>menu <span class="k">B</span>anchor <span class="k">ENTER</span>chat`,
+  aim:`<span class="k">CLICK</span>grab with physgun`,
+  hold:`<span class="k">CLICK</span>drop <span class="k">R</span>grid place <span class="k">Q/E</span>rotate <span class="k">Z/C</span>tilt <span class="k">RMB</span>weld <span class="k">X</span>delete`,
+  prec:`<span class="k">MOUSE</span>move part <span class="k">SCROLL</span>dist <span class="k">Q/E</span>rotate <span class="k">Z/C</span>tilt <span class="k">RMB</span>weld`,
+  wire:`<span class="k">CLICK</span>battery → cockpit · cockpit → thrusters <span class="k">RMB</span>cancel <span class="k">N</span>exit`,
+  pilot:`<span class="k">W/S</span>thrust <span class="k">A/D</span>steer <span class="k">SPACE/C</span>lift <span class="k">R/F Z/X</span>gyro <span class="k">SHIFT</span>all engines <span class="k">E</span>exit`,
+  pilot_mg:`<span class="k">MOUSE</span>steer ship <span class="k">W/S</span>thrust <span class="k">SPACE/C</span>lift <span class="k">Z/X</span>roll <span class="k">SHIFT</span>all engines <span class="k">E</span>exit`
+};
+function setHints(k){ const h=el('hints'); if(h.dataset.k!==k){ h.dataset.k=k; h.innerHTML=HINTS[k]||''; } }
+
+const chatBar=el('chatBar'), chatInput=el('chatInput'), chatLog=el('chatLog');
+function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+function addChat(name,msg){
+  const d=document.createElement('div'); d.className='chat-msg';
+  d.innerHTML='<b>'+esc(name)+'</b>: '+esc(msg);
+  chatLog.appendChild(d); while(chatLog.children.length>8) chatLog.removeChild(chatLog.firstChild);
+  setTimeout(()=>{ d.style.transition='opacity .8s'; d.style.opacity='0'; setTimeout(()=>d.remove(),850); },6000);
+}
+async function copyText(t){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(t); return true; }
+  }catch(e){}
+  try{
+    const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok;
+  }catch(e){ return false; }
+}
+
+/* ═════════ 4. RENDERER / SCENE / SKY ═════════ */
+const canvas=el('scene');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.shadowMap.enabled=SET.shadows>0;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(SET.fov, innerWidth/innerHeight, .1, 100000);
+scene.fog=new THREE.Fog(0xbcd2e4, 200, 3000);
+const fogLow=new THREE.Color(0xbcd2e4), fogSpace=new THREE.Color(0x05070c);
+
+const sunDir=new THREE.Vector3(.42,.52,.32).normalize();
+scene.add(new THREE.HemisphereLight(0xd8e6f2, 0x8c8a76, .55));
+const sun=new THREE.DirectionalLight(0xfff2dd, 2.6);
+sun.castShadow=SET.shadows>0;
+sun.shadow.mapSize.set(SET.shadows,SET.shadows);
+sun.shadow.camera.left=-70; sun.shadow.camera.right=70; sun.shadow.camera.top=70; sun.shadow.camera.bottom=-70;
+sun.shadow.camera.near=1; sun.shadow.camera.far=420; sun.shadow.bias=-0.0004; sun.shadow.normalBias=.03;
+scene.add(sun); scene.add(sun.target);
+
+const skyUni={uSun:{value:sunDir}, uSpace:{value:0}};
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(30000,32,18), new THREE.ShaderMaterial({
+  uniforms:skyUni, side:THREE.BackSide, depthWrite:false, fog:false,
+  vertexShader:`varying vec3 vDir; void main(){ vDir=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader:`varying vec3 vDir; uniform vec3 uSun; uniform float uSpace;
+  void main(){ vec3 d=normalize(vDir); float h=d.y; float sd=max(dot(d,uSun),0.);
+    vec3 zen=vec3(.20,.42,.72), hor=vec3(.72,.80,.88), gnd=vec3(.71,.79,.87);
+    vec3 sky=mix(hor,zen,pow(clamp(h,0.,1.),.55));
+    sky+=vec3(1.,.55,.28)*pow(sd,5.)*pow(1.-abs(h),6.)*.45;
+    sky=mix(sky,gnd,smoothstep(0.,-.25,h));
+    float disc=smoothstep(.99955,.99985,sd);
+    vec3 col=mix(sky,vec3(.004,.005,.008),uSpace);
+    col+=vec3(1.,.92,.78)*disc*2.4 + vec3(1.,.75,.45)*pow(sd,220.)*.55*(1.-uSpace);
+    gl_FragColor=vec4(col,1.); }`}));
+skyMesh.renderOrder=-100; scene.add(skyMesh);
+
+function radialCanvas(size,stops){ const c=document.createElement('canvas'); c.width=c.height=size;
+  const g=c.getContext('2d'), r=g.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  stops.forEach(s=>r.addColorStop(s[0],s[1])); g.fillStyle=r; g.fillRect(0,0,size,size); return c; }
+const sunSprite=new THREE.Sprite(new THREE.SpriteMaterial({
+  map:new THREE.CanvasTexture(radialCanvas(128,[[0,'rgba(255,250,235,1)'],[.25,'rgba(255,220,160,.9)'],[.6,'rgba(255,160,70,.25)'],[1,'rgba(255,140,50,0)']])),
+  blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+sunSprite.scale.set(2600,2600,1); sunSprite.renderOrder=-95; scene.add(sunSprite);
+
+const starsGeo=new THREE.BufferGeometry();
+{ const N=2200, pos=new Float32Array(N*3), col=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ const v=new THREE.Vector3().randomDirection().multiplyScalar(38000);
+    pos[i*3]=v.x; pos[i*3+1]=v.y; pos[i*3+2]=v.z;
+    const t=Math.random(), c=t<.75?[1,1,1]:t<.9?[1,.83,.6]:[.65,.8,1], b=.5+Math.random()*.5;
+    col[i*3]=c[0]*b; col[i*3+1]=c[1]*b; col[i*3+2]=c[2]*b; }
+  starsGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  starsGeo.setAttribute('color',new THREE.BufferAttribute(col,3)); }
+const starsMat=new THREE.PointsMaterial({size:1.8,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0,depthWrite:false});
+const stars=new THREE.Points(starsGeo,starsMat); stars.renderOrder=-90; scene.add(stars);
+
+/* ═════════ 5. PROCEDURAL TEXTURES ═════════ */
+function makeTex(c,rx=1,ry=1){ const t=new THREE.CanvasTexture(c);
+  t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(rx,ry); t.anisotropy=8; return t; }
+function gridCanvas(px, base, line, heavy, sub=1){
+  const c=document.createElement('canvas'); c.width=c.height=px; const g=c.getContext('2d');
+  g.fillStyle=base; g.fillRect(0,0,px,px);
+  g.globalAlpha=.06; g.fillStyle='#000';
+  for(let i=0;i<160;i++) g.fillRect(Math.random()*px,Math.random()*px,2,2);
+  g.globalAlpha=1;
+  const n=sub*2;
+  g.strokeStyle=line; g.lineWidth=1; g.globalAlpha=.5;
+  for(let i=1;i<n;i++){ const p=i*px/n; g.beginPath();g.moveTo(p,0);g.lineTo(p,px);g.moveTo(0,p);g.lineTo(px,p);g.stroke(); }
+  g.globalAlpha=.9; g.strokeStyle=heavy; g.lineWidth=2; g.strokeRect(1,1,px-2,px-2);
+  g.globalAlpha=1; return c;
+}
+const groundMat=new THREE.MeshStandardMaterial({
+  map:makeTex(gridCanvas(256,'#a7a294','#8f8b7d','#7c7869',2), GROUND_R*2, GROUND_R*2),
+  roughness:.95, metalness:0, transparent:true, depthWrite:false});
+const groundMesh=new THREE.Mesh(new THREE.CircleGeometry(GROUND_R,96), groundMat);
+groundMesh.rotation.x=-Math.PI/2; groundMesh.receiveShadow=true; scene.add(groundMesh);
+
+const planetGroup=new THREE.Group(); planetGroup.position.set(0,-5000,0); scene.add(planetGroup);
+const planetMat=new THREE.MeshStandardMaterial({transparent:true, opacity:0, roughness:1});
+{ const c=document.createElement('canvas'); c.width=1024; c.height=512; const g=c.getContext('2d');
+  g.fillStyle='#174a6e'; g.fillRect(0,0,1024,512);
+  let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647; return seed/2147483647;};
+  for(let i=0;i<26;i++){ const x=rnd()*1024, y=90+rnd()*330, r=20+rnd()*70;
+    g.fillStyle=['#37714f','#5f8a56','#4d7a4e','#8a916a'][i%4];
+    g.beginPath(); g.ellipse(x,y,r,r*.55,rnd()*3,0,7); g.fill();
+    g.beginPath(); g.ellipse(x+r*.6,y+rnd()*20-10,r*.5,r*.3,rnd()*3,0,7); g.fill(); }
+  g.fillStyle='#e8eef2'; g.fillRect(0,0,1024,34); g.fillRect(0,478,1024,34);
+  g.strokeStyle='rgba(255,255,255,.10)'; g.lineWidth=1;
+  for(let x=0;x<=1024;x+=64){g.beginPath();g.moveTo(x,0);g.lineTo(x,512);g.stroke();}
+  for(let y=0;y<=512;y+=64){g.beginPath();g.moveTo(0,y);g.lineTo(1024,y);g.stroke();}
+  g.strokeStyle='rgba(255,255,255,.22)'; g.lineWidth=2;
+  for(let x=0;x<=1024;x+=256){g.beginPath();g.moveTo(x,0);g.lineTo(x,512);g.stroke();}
+  planetMat.map=makeTex(c); }
+const planet=new THREE.Mesh(new THREE.SphereGeometry(5000,56,36), planetMat);
+planet.visible=false; planet.renderOrder=1; planetGroup.add(planet);
+const cloudMat=new THREE.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:.5, depthWrite:false, roughness:1});
+{ const c=document.createElement('canvas'); c.width=512; c.height=256; const g=c.getContext('2d');
+  g.fillStyle='#000'; g.fillRect(0,0,512,256); g.fillStyle='#fff';
+  let seed=3; const rnd=()=>{seed=(seed*16807)%2147483647; return seed/2147483647;};
+  for(let i=0;i<70;i++){ g.globalAlpha=.35+rnd()*.4; g.beginPath();
+    g.ellipse(rnd()*512,50+rnd()*156,10+rnd()*46,4+rnd()*12,rnd()*3,0,7); g.fill(); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; cloudMat.alphaMap=t; }
+const clouds=new THREE.Mesh(new THREE.SphereGeometry(5045,48,32), cloudMat);
+clouds.renderOrder=2; planetGroup.add(clouds);
+const atmoUni={uSun:{value:sunDir}, uOp:{value:0}};
+const atmo=new THREE.Mesh(new THREE.SphereGeometry(5120,64,40), new THREE.ShaderMaterial({
+  uniforms:atmoUni, side:THREE.BackSide, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+  vertexShader:`varying vec3 vN; varying vec3 vW;
+    void main(){ vN=normalize((modelMatrix*vec4(normal,0.)).xyz); vW=(modelMatrix*vec4(position,1.)).xyz;
+    gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.); }`,
+  fragmentShader:`varying vec3 vN; varying vec3 vW; uniform vec3 uSun; uniform float uOp;
+  void main(){ vec3 V=normalize(cameraPosition-vW); float rim=pow(1.-abs(dot(vN,V)),3.);
+    float s=dot(vN,uSun); float day=smoothstep(-.35,.45,s);
+    vec3 col=mix(vec3(.20,.48,.95), vec3(1.,.45,.14), pow(1.-abs(s),5.)*.95);
+    gl_FragColor=vec4(col*rim*(.25+1.4*day), rim*uOp); }`}));
+atmo.visible=false; atmo.renderOrder=3; planetGroup.add(atmo);
+
+/* ═════════ 6. PHYSICS WORLD ═════════ */
+const world=new CANNON.World();
+world.gravity.set(0,0,0);
+world.broadphase=new CANNON.SAPBroadphase(world);
+world.allowSleep=true;
+world.solver.iterations=14;
+world.defaultContactMaterial.friction=.5;
+world.defaultContactMaterial.restitution=.02;
+const matGround=new CANNON.Material('g'), matPart=new CANNON.Material('p'), matPlayer=new CANNON.Material('pl');
+world.addContactMaterial(new CANNON.ContactMaterial(matGround,matPart,{friction:.75,restitution:.02}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPart,matPart,{friction:.6,restitution:.02}));
+world.addContactMaterial(new CANNON.ContactMaterial(matGround,matPlayer,{friction:.2,restitution:0}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPart,matPlayer,{friction:.3,restitution:0}));
+const groundBody=new CANNON.Body({mass:0, material:matGround, collisionFilterGroup:GRP.GROUND});
+groundBody.addShape(new CANNON.Plane());
+groundBody.quaternion.setFromEuler(-Math.PI/2,0,0);
+world.addBody(groundBody);
+function addStaticBox(pos,hx,hy,hz){
+  const b=new CANNON.Body({mass:0, material:matGround, collisionFilterGroup:GRP.STATIC});
+  b.addShape(new CANNON.Box(new CV(hx,hy,hz))); b.position.set(pos[0],pos[1],pos[2]); world.addBody(b); return b;
+}
+
+/* ═════════ 7. PART CATALOG & MESHES ═════════ */
+function partCanvas(base,heavy,label){
+  const c=gridCanvas(128,base,'rgba(0,0,0,.28)',heavy);
+  if(label){ const g=c.getContext('2d'); g.fillStyle='rgba(20,16,10,.78)';
+    g.font='bold 26px monospace'; g.textAlign='center'; g.fillText(label,64,74); }
+  return c;
+}
+function cells3D(nx,ny,nz){ const a=[];
+  for(let x=0;x<nx;x++)for(let y=0;y<ny;y++)for(let z=0;z<nz;z++)a.push([x,y,z]);
+  return a; }
+const DEFS={
+  block:  {name:'BLOCK', cat:'structure', shape:'box', size:[.5,.5,.5], mass:2, spec:'0.5 m structural cube',
+           tex:()=>makeTex(partCanvas('#b9b3a4','#8f897a'))},
+  block2: {name:'BLOCK 2x', cat:'structure', shape:'box', size:[1,1,1], mass:12, cells:cells3D(2,2,2),
+           spec:'1 m solid cube - fast big builds', tex:()=>makeTex(gridCanvas(128,'#9d9788','#7d7768','#696457',1))},
+  hull:   {name:'HULL 4x2', cat:'structure', shape:'box', size:[2,1,1], mass:16, cells:cells3D(4,2,2),
+           spec:'2 x 1 x 1 m fuselage brick', tex:()=>makeTex(gridCanvas(128,'#8d949a','#6a7176','#565d63',1))},
+  wing:   {name:'WING 6x2', cat:'structure', shape:'box', size:[3,.15,1], mass:4, cells:cells3D(6,1,2),
+           spec:'3 m wing / fin - for planes', tex:()=>makeTex(gridCanvas(128,'#c4beb0','#9a9486','#868173',1))},
+  beam:   {name:'BEAM 4x1', cat:'structure', shape:'box', size:[2,.25,.5], mass:2, yawOnly:true,
+           cells:[[0,0,0],[1,0,0],[2,0,0],[3,0,0]], spec:'2.0 m frame beam - yaw only',
+           tex:()=>makeTex(partCanvas('#a9a394','#7d7768'))},
+  plate:  {name:'PLATE', cat:'plates', shape:'box', size:[.5,.08,.5], mass:.5, spec:'0.5 x 0.5 floor panel',
+           tex:()=>makeTex(partCanvas('#c8c2b2','#98927f'))},
+  plateL: {name:'PLATE 2x1', cat:'plates', shape:'box', size:[1,.08,.5], mass:1, yawOnly:true,
+           cells:[[0,0,0],[1,0,0]], spec:'1.0 x 0.5 panel - yaw only',
+           tex:()=>makeTex(partCanvas('#c8c2b2','#8f897a'))},
+  deck:   {name:'DECK 4x4', cat:'plates', shape:'box', size:[2,.25,2], mass:6, cells:cells3D(4,1,4),
+           spec:'2 x 2 m floor / wall panel', tex:()=>makeTex(gridCanvas(128,'#cdc7b7','#a29c8d','#8e887a',1))},
+  engine: {name:'ION ENGINE', cat:'propulsion', shape:'cyl', size:[.4,.46,.4], mass:3, thrust:260, burn:3.5,
+           spec:'260 N - needs cockpit wire + fuel', tex:()=>makeTex(partCanvas('#4c4f52','#2c2e30'))},
+  tank:   {name:'FUEL TANK', cat:'propulsion', shape:'cyl', size:[.44,.5,.44], mass:5, fuelCap:300,
+           spec:'300 fuel - feeds engines automatically', tex:()=>makeTex(partCanvas('#d8d2c0','#a06020','FUEL'))},
+  battery:{name:'BATTERY', cat:'power', shape:'box', size:[.36,.36,.36], mass:4,
+           spec:'wire BATTERY -> COCKPIT for power', tex:()=>makeTex(partCanvas('#d9c26a','#1c1913'))},
+  gyro:   {name:'GYRO', cat:'power', shape:'box', size:[.38,.38,.38], mass:3, torque:90,
+           spec:'steering - needs cockpit wire', tex:()=>makeTex(partCanvas('#586066','#333a3f','GY'))},
+  stab:   {name:'STABILIZER', cat:'power', shape:'box', size:[.38,.38,.38], mass:3, stab:true,
+           spec:'auto-level - needs cockpit wire', tex:()=>makeTex(partCanvas('#57755f','#33493c','STAB'))},
+  cockpit:{name:'COCKPIT', cat:'flight', shape:'box', size:[.46,.9,.46], mass:10, yawOnly:true, isCockpit:true,
+           cells:[[0,0,0],[0,1,0]], spec:'battery -> here -> cockpit -> engines',
+           tex:()=>makeTex(partCanvas('#7d8890','#565f66'))},
+};
+for(const k in DEFS){ DEFS[k].key=k; DEFS[k].cells=DEFS[k].cells||[[0,0,0]]; DEFS[k].texCache=null; }
+function defTex(d){ return d.texCache||(d.texCache=d.tex()); }
+function defCentroid(def){ let x=0,y=0,z=0;
+  for(const c of def.cells){x+=c[0];y+=c[1];z+=c[2];}
+  const n=def.cells.length; return new CV(x/n*S,y/n*S,z/n*S); }
+const glassMat=new THREE.MeshStandardMaterial({color:0x1c2830, roughness:.15, metalness:.6, emissive:0x0a1620, emissiveIntensity:.5});
+const nozzleMat=new THREE.MeshStandardMaterial({color:0x22262a, roughness:.6, metalness:.7});
+const flameMat=new THREE.MeshBasicMaterial({color:0xffa040, transparent:true, opacity:.85, blending:THREE.AdditiveBlending, depthWrite:false});
+
+function buildPartMesh(def){
+  const grp=new THREE.Group(); const s=def.size;
+  const mat=new THREE.MeshStandardMaterial({map:defTex(def), roughness:.8, metalness:.15});
+  let core;
+  if(def.shape==='cyl'){
+    core=new THREE.Mesh(new THREE.CylinderGeometry(s[0]/2,s[0]/2,s[1],14), mat);
+    if(def.key==='engine'){
+      const nz=new THREE.Mesh(new THREE.CylinderGeometry(.2,.115,.14,14), nozzleMat); nz.position.y=-.29; grp.add(nz);
+      const tip=new THREE.Mesh(new THREE.ConeGeometry(.05,.12,8), new THREE.MeshBasicMaterial({color:0xffb454}));
+      tip.position.y=.33; grp.add(tip);
+      const fl=new THREE.Mesh(new THREE.ConeGeometry(.13,.75,10,1,true), flameMat);
+      fl.rotation.x=Math.PI; fl.position.y=-.72; fl.visible=false; grp.add(fl); grp.userData.flame=fl;
+    }
+  } else {
+    core=new THREE.Mesh(new THREE.BoxGeometry(s[0],s[1],s[2]), mat);
+    if(def.key==='cockpit'){
+      const glass=new THREE.Mesh(new THREE.BoxGeometry(.38,.4,.1), glassMat);
+      glass.position.set(0,.22,.21); grp.add(glass);
+      const ant=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.34,5), nozzleMat);
+      ant.position.set(.15,.5,0); grp.add(ant);
+    }
+    if(def.key==='battery'){
+      const t1=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.08,8), nozzleMat); t1.position.set(.09,.21,.09); grp.add(t1);
+      const t2=t1.clone(); t2.position.set(-.09,.21,-.09); grp.add(t2);
+    }
+  }
+  core.castShadow=true; core.receiveShadow=true; grp.add(core);
+  grp.userData.coreMat=mat;
+  if(def.key==='gyro'){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.12,.018,8,24), new THREE.MeshStandardMaterial({color:0xd8b06a, roughness:.4, metalness:.8}));
+    ring.position.y=.06; grp.add(ring); grp.userData.ring=ring;
+  }
+  if(def.key==='stab'){
+    const bm=new THREE.MeshStandardMaterial({color:0xd8b06a, roughness:.4, metalness:.8});
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(.3,.025,.05), bm); bar.position.y=.22; grp.add(bar);
+    const bar2=bar.clone(); bar2.rotation.y=Math.PI/2; grp.add(bar2);
+  }
+  return grp;
+}
+function shapeFor(def){
+  if(def.shape==='cyl') return new CANNON.Cylinder(def.size[0]/2, def.size[0]/2, def.size[1], 10);
+  return new CANNON.Box(new CV(def.size[0]/2, def.size[1]/2, def.size[2]/2));
+}
+
+/* ═════════ 8. SHIPS ═════════ */
+const ships=new Set(), shipsRoot=new THREE.Group(); scene.add(shipsRoot);
+const wires=[]; let SHIP_ID=0, PART_ID=0;
+let buildShip=null;
+const key3=(x,y,z)=>x+','+y+','+z;
+function rotCells(def,q){ if(def.cells.length===1) return def.cells;
+  const out=[]; for(const c of def.cells){ const v=q.vmult(new CV(c[0],c[1],c[2]));
+    out.push([Math.round(v.x),Math.round(v.y),Math.round(v.z)]); } return out; }
+function snapQuat90(q){
+  const m=new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion(q.x,q.y,q.z,q.w));
+  const e=m.elements;
+  const snap=i=>{ const x=e[i],y=e[i+1],z=e[i+2];
+    if(Math.abs(x)>Math.abs(y)&&Math.abs(x)>Math.abs(z)){e[i]=Math.sign(x);e[i+1]=0;e[i+2]=0;}
+    else if(Math.abs(y)>Math.abs(z)){e[i]=0;e[i+1]=Math.sign(y);e[i+2]=0;}
+    else{e[i]=0;e[i+1]=0;e[i+2]=Math.sign(z);} };
+  snap(0); snap(4);
+  const a=new THREE.Vector3(e[0],e[1],e[2]), b=new THREE.Vector3(e[4],e[5],e[6]), c=new THREE.Vector3();
+  c.crossVectors(a,b).normalize(); e[8]=c.x;e[9]=c.y;e[10]=c.z;
+  const tq=new THREE.Quaternion().setFromRotationMatrix(m);
+  return new CQ(tq.x,tq.y,tq.z,tq.w);
+}
+function gridQuat(def,q){ return def.cells.length===1 ? q.clone() : snapQuat90(q); }
+function orientFor(ship,def,worldQuat){
+  return gridQuat(def, ship.body.quaternion.conjugate().mult(worldQuat));
+}
+class Ship{
+  constructor(){
+    this.id=++SHIP_ID;
+    this.parts=new Set(); this.cellMap=new Map();
+    this.anchored=false; this.anchorPart=null;
+    this.comGrid=new CV(0,0,0);
+    this.owner=null;
+    this.ownerName=null;
+    this.netKey=null;
+    this.remote=false;
+    this.remoteFlying=null;   /* peer id of whoever is flying this ship */
+    this.flyTarget={pos:new CV(), q:new CQ(0,0,0,1), thr:0, last:0};
+    this.savedMask=null;
+    this.body=new CANNON.Body({mass:1, material:matPart, type:CANNON.Body.DYNAMIC,
+      linearDamping:.02, angularDamping:.45, allowSleep:true, sleepSpeedLimit:.5, sleepTimeLimit:.6,
+      collisionFilterGroup:GRP.PART, collisionFilterMask:GRP.GROUND|GRP.PART|GRP.PLAYER|GRP.STATIC});
+    this.group=new THREE.Group(); shipsRoot.add(this.group);
+    this.baseMass=0; this.poweredCockpit=false; this.dirty=true;
+    world.addBody(this.body); ships.add(this);
+  }
+  gridToWorld(gv){ return this.body.pointToWorldFrame(gv.vsub(this.comGrid)); }
+  worldToGrid(wv){ return this.body.pointToLocalFrame(wv).vadd(this.comGrid); }
+  addPart(def, cell, lq, opts={}){
+    const part={ id:++PART_ID, def, anchor:[cell[0],cell[1],cell[2]],
+      cells:rotCells(def,lq).map(c=>[c[0]+cell[0],c[1]+cell[1],c[2]+cell[2]]),
+      localQuat:lq.clone(), fuel:def.fuelCap?def.fuelCap:0, powered:false, ship:null };
+    let cx=0,cy=0,cz=0;
+    for(const c of part.cells){ cx+=c[0];cy+=c[1];cz+=c[2]; this.cellMap.set(key3(...c), part); }
+    cx/=part.cells.length; cy/=part.cells.length; cz/=part.cells.length;
+    part.localPos=new CV(cx*S,cy*S,cz*S);
+    part.shape=shapeFor(def);
+    this.body.addShape(part.shape, part.localPos, part.localQuat);
+    part.mesh=buildPartMesh(def);
+    part.mesh.position.copy(part.localPos); part.mesh.quaternion.copy(part.localQuat);
+    part.mesh.userData.part=part; this.group.add(part.mesh);
+    part.ship=this; this.parts.add(part); this.baseMass+=def.mass;
+    if(opts.fuel!==undefined) part.fuel=opts.fuel;
+    this.refresh(); return part;
+  }
+  removePart(part){
+    this.body.removeShape(part.shape);
+    this.group.remove(part.mesh);
+    this.parts.delete(part);
+    for(const c of part.cells) this.cellMap.delete(key3(...c));
+    if(this.anchorPart===part) this.anchorPart=null;
+    this.baseMass-=part.def.mass;
+    for(let i=wires.length-1;i>=0;i--){ const w=wires[i];
+      if(w.a===part||w.b===part){ scene.remove(w.line,w.n1,w.n2); wires.splice(i,1); } }
+    if(this.parts.size===0){ this.destroy(); return null; }
+    this.refresh(); return this;
+  }
+  fuelTotal(){ let f=0; for(const p of this.parts) f+=p.fuel||0; return f; }
+  fuelCap(){ let f=0; for(const p of this.parts) if(p.def.fuelCap) f+=p.def.fuelCap; return f; }
+  refresh(){
+    this.body.mass=this.anchored?0:this.baseMass+this.fuelTotal()*FUEL_MASS;
+    let m=0,cx=0,cy=0,cz=0;
+    for(const p of this.parts){
+      const pm=p.def.mass+(p.fuel||0)*FUEL_MASS;
+      m+=pm; cx+=p.localPos.x*pm; cy+=p.localPos.y*pm; cz+=p.localPos.z*pm;
+    }
+    const nc=m>0?new CV(cx/m,cy/m,cz/m):new CV(0,0,0);
+    const delta=new CV(nc.x-this.comGrid.x,nc.y-this.comGrid.y,nc.z-this.comGrid.z);
+    const dW=this.body.quaternion.vmult(delta);
+    this.body.position.vadd(dW,this.body.position);
+    this.body.previousPosition.vadd(dW,this.body.previousPosition);
+    this.body.interpolatedPosition.vadd(dW,this.body.interpolatedPosition);
+    const w=this.body.angularVelocity;
+    this.body.velocity.x+=w.y*dW.z-w.z*dW.y;
+    this.body.velocity.y+=w.z*dW.x-w.x*dW.z;
+    this.body.velocity.z+=w.x*dW.y-w.y*dW.x;
+    this.comGrid.copy(nc);
+    for(const p of this.parts){
+      const i=this.body.shapes.indexOf(p.shape);
+      if(i>=0){ const so=this.body.shapeOffsets[i]; so.copy(p.localPos); so.vsub(this.comGrid, so); }
+    }
+    this.body.updateMassProperties(); this.body.updateBoundingRadius();
+    this.body.aabbNeedsUpdate=true; this.body.wakeUp(); this.dirty=true;
+  }
+  destroy(){
+    for(let i=wires.length-1;i>=0;i--){ const w=wires[i];
+      if(w.a.ship===this||w.b.ship===this){ scene.remove(w.line,w.n1,w.n2); wires.splice(i,1); } }
+    world.removeBody(this.body); shipsRoot.remove(this.group); ships.delete(this);
+    if(buildShip===this) buildShip=null;
+    if(remoteShips.has(this.netKey)) remoteShips.delete(this.netKey);
+    if(pilot.on&&pilot.ship===this) exitPilot(true);
+  }
+}
+function syncGroup(s){
+  const off=s.body.quaternion.vmult(s.comGrid);
+  s.group.position.set(s.body.position.x-off.x, s.body.position.y-off.y, s.body.position.z-off.z);
+  s.group.quaternion.copy(s.body.quaternion);
+}
+function tintAnchor(part,on){
+  if(!part) return;
+  const m=part.mesh.userData.coreMat;
+  if(m){ m.emissive.setHex(on?0x8a5215:0x000000); m.emissiveIntensity=on?.9:1; }
+}
+function anchorShipFn(ship, part){
+  ship.anchored=true; ship.anchorPart=part;
+  ship.body.type=CANNON.Body.STATIC;
+  ship.body.velocity.set(0,0,0); ship.body.angularVelocity.set(0,0,0);
+  ship.refresh();
+  tintAnchor(part,true);
+  buildShip=ship;
+  if(!ship.remote&&ship.owner===null) ship.owner=MP.peer?MP.peer.id:'local';
+  netAnchorShip(ship);
+  Sfx.good(); toast('ANCHORED - BUILD ON IT · B AGAIN TO RELEASE','good');
+}
+function releaseShip(ship){
+  ship.anchored=false;
+  if(ship.anchorPart) tintAnchor(ship.anchorPart,false);
+  ship.anchorPart=null;
+  ship.body.type=CANNON.Body.DYNAMIC;
+  ship.refresh();
+  if(buildShip===ship) buildShip=null;
+  if(!ship.remote) netReleaseShip(ship);
+  Sfx.weld(); toast('RELEASED','good');
+}
+function checkSplit(ship){
+  if(ship.parts.size<2) return;
+  const seen=new Set(), comps=[];
+  for(const p of ship.parts){
+    if(seen.has(p)) continue;
+    const comp=[], stack=[p]; seen.add(p);
+    while(stack.length){ const q=stack.pop(); comp.push(q);
+      for(const c of q.cells) for(const d of DIRS){
+        const n=ship.cellMap.get(key3(c[0]+d[0],c[1]+d[1],c[2]+d[2]));
+        if(n&&!seen.has(n)){ seen.add(n); stack.push(n); } } }
+    comps.push(comp);
+  }
+  if(comps.length<2) return;
+  const old=ship, cockpitPart=[...old.parts].find(p=>p.def.isCockpit);
+  for(const comp of comps){
+    const ns=new Ship();
+    ns.comGrid.copy(old.comGrid);
+    ns.body.position.copy(old.body.position); ns.body.quaternion.copy(old.body.quaternion);
+    ns.body.velocity.copy(old.body.velocity); ns.body.angularVelocity.copy(old.body.angularVelocity);
+    for(const p of comp){
+      old.parts.delete(p); for(const c of p.cells) old.cellMap.delete(key3(...c));
+      old.group.remove(p.mesh); old.body.removeShape(p.shape); old.baseMass-=p.def.mass;
+      p.ship=ns; ns.parts.add(p); ns.baseMass+=p.def.mass;
+      for(const c of p.cells) ns.cellMap.set(key3(...c),p);
+      ns.body.addShape(p.shape,p.localPos,p.localQuat);
+      ns.group.add(p.mesh);
+    }
+    ns.owner=old.owner; ns.remote=old.remote; ns.ownerName=old.ownerName;
+    ns.refresh();
+    if(pilot.on&&pilot.cockpit&&comp.includes(cockpitPart)){ pilot.ship=ns; pilot.cockpit=cockpitPart; computeGroups(); }
+  }
+  old.parts.clear(); old.cellMap.clear(); old.destroy();
+  if(!old.remote) netRemoveShip(old);
+  toast('SHIP SPLIT','warn');
+}
+function refreshPower(){
+  for(const s of ships){ s.poweredCockpit=false; for(const p of s.parts) p.powered=false; }
+  for(const w of wires){
+    if(!w.a.ship||!w.b.ship) continue;
+    if(w.a.def.key==='battery'&&w.b.def.isCockpit) w.b.powered=true;
+    if(w.b.def.key==='battery'&&w.a.def.isCockpit) w.a.powered=true;
+  }
+  for(const w of wires){
+    if(!w.a.ship||!w.b.ship) continue;
+    let ck=null, other=null;
+    if(w.a.def.isCockpit&&w.a.powered){ ck=w.a; other=w.b; }
+    else if(w.b.def.isCockpit&&w.b.powered){ ck=w.b; other=w.a; }
+    if(!ck) continue;
+    if(other.def.thrust||other.def.torque||other.def.stab) other.powered=true;
+  }
+  for(const s of ships)
+    for(const p of s.parts) if(p.def.isCockpit&&p.powered) s.poweredCockpit=true;
+}
+function makeStandalone(def, anchorPos, wquat, fuel){
+  const ship=new Ship();
+  ship.body.position.copy(anchorPos); ship.body.quaternion.copy(wquat);
+  ship.body.velocity.set(0,0,0); ship.body.angularVelocity.set(0,0,0);
+  ship.addPart(def,[0,0,0],QID,{fuel});
+  return ship;
+}
+function placeNewShip(def, anchorPos, wquat, fuel){
+  const ship=new Ship();
+  ship.body.position.copy(anchorPos); ship.body.quaternion.set(0,0,0,1);
+  ship.addPart(def,[0,0,0],gridQuat(def,wquat),{fuel});
+  return ship;
+}
+function weldIntoShip(ship, def, cell, wquat, fuel){
+  const lq=orientFor(ship,def,wquat);
+  const cells=rotCells(def,lq).map(c=>[c[0]+cell[0],c[1]+cell[1],c[2]+cell[2]]);
+  for(const c of cells) if(ship.cellMap.has(key3(...c))) return null;
+  let adj=false;
+  for(const c of cells) for(const d of DIRS)
+    if(ship.cellMap.has(key3(c[0]+d[0],c[1]+d[1],c[2]+d[2]))) adj=true;
+  if(!adj) return null;
+  return ship.addPart(def,cell,lq,{fuel});
+}
+
+/* ═════════ 9. AIRPORT ═════════ */
+function runwayTexture(){
+  const c=document.createElement('canvas'); c.width=2048; c.height=192; const g=c.getContext('2d');
+  g.fillStyle='#43464a'; g.fillRect(0,0,2048,192);
+  g.globalAlpha=.08; g.fillStyle='#000';
+  for(let i=0;i<900;i++) g.fillRect(Math.random()*2048,Math.random()*192,2,2);
+  g.globalAlpha=1;
+  g.fillStyle='#e8e5da';
+  for(let i=0;i<26;i++) g.fillRect(80+i*74,92,44,8);
+  for(const x0 of [10,1930]) for(let i=0;i<8;i++) g.fillRect(x0,18+i*22,34,12);
+  g.fillRect(0,4,2048,4); g.fillRect(0,184,2048,4);
+  g.font='bold 52px monospace'; g.textAlign='center';
+  g.fillText('27',150,120); g.fillText('09',1898,120);
+  return makeTex(c);
+}
+function boxMesh(w,h,d,mat,pos){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(...pos); m.castShadow=true; m.receiveShadow=true; scene.add(m); return m;
+}
+const concMat=new THREE.MeshStandardMaterial({map:makeTex(gridCanvas(128,'#b5b0a2','#918c7d','#7e7a6c'),3,3), roughness:.95});
+const metalMat=new THREE.MeshStandardMaterial({map:makeTex(gridCanvas(128,'#8b9094','#6b7074','#565b5f'),2,2), roughness:.7, metalness:.3});
+const pumpMeshes=[]; let radarMesh=null;
+(function buildAirport(){
+  boxMesh(400,.2,26,new THREE.MeshStandardMaterial({map:runwayTexture(),roughness:.95}),[0,.1,0]);
+  addStaticBox([0,.1,0],200,.1,13);
+  boxMesh(52,.24,52,concMat,[62,.12,42]); addStaticBox([62,.12,42],26,.12,26);
+  boxMesh(6,18,6,concMat,[30,9,58]); addStaticBox([30,9,58],3,9,3);
+  boxMesh(8,3.4,8,glassMat,[30,19.7,58]); addStaticBox([30,19.7,58],4,1.7,4);
+  radarMesh=boxMesh(4.2,.16,.5,metalMat,[30,21.7,58]);
+  boxMesh(24,.6,20,metalMat,[92,4.3,50]);  boxMesh(.6,8,20,metalMat,[80.3,4,50]);
+  boxMesh(.6,8,20,metalMat,[103.7,4,50]);  boxMesh(24,8,.6,metalMat,[92,4,59.7]);
+  addStaticBox([80.3,4,50],.3,4,10); addStaticBox([103.7,4,50],.3,4,10);
+  addStaticBox([92,4,59.7],12,4,.3); addStaticBox([92,4.3,50],12,.3,10);
+  for(let i=0;i<4;i++){ const x=-120+i*80;
+    boxMesh(.28,9,.28,metalMat,[x,4.5,-16]); boxMesh(.28,9,.28,metalMat,[x,4.5,16]);
+    const head=new THREE.Mesh(new THREE.BoxGeometry(.9,.4,.5),
+      new THREE.MeshStandardMaterial({color:0x30343a, emissive:0xfff2cc, emissiveIntensity:1.6}));
+    head.position.set(x,9.1,-16); scene.add(head);
+    const h2=head.clone(); h2.position.z=16; scene.add(h2);
+    addStaticBox([x,4.5,-16],.15,4.5,.15); addStaticBox([x,4.5,16],.15,4.5,.15);
+  }
+  boxMesh(.12,6,.12,metalMat,[-180,3,-24]);
+  const sock=new THREE.Mesh(new THREE.ConeGeometry(.5,2.6,10),
+    new THREE.MeshStandardMaterial({color:0xd96a1e, roughness:.9}));
+  sock.rotation.z=Math.PI/2; sock.position.set(-178.8,5.9,-24); scene.add(sock);
+  const pump=new THREE.Group(); pump.position.set(48,0,30); scene.add(pump);
+  const pb=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.7,1),
+    new THREE.MeshStandardMaterial({map:makeTex(partCanvas('#c8552a','#1c1913','FUEL')),roughness:.7}));
+  pb.position.y=.85; pb.castShadow=true; pump.add(pb); pumpMeshes.push(pump);
+  addStaticBox([48,.85,30],.8,.85,.5);
+})();
+
+/* ═════════ 10. STARTER SCENE ═════════ */
+function spawnStarter(){
+  const ship=new Ship(); ship.body.position.set(54,.28,38); ship.body.quaternion.set(0,0,0,1);
+  const P=(k,c,e)=>ship.addPart(DEFS[k],c,e||QID);
+  P('plate',[0,0,0]);P('plate',[-1,0,0]);P('plate',[1,0,0]);P('plate',[0,0,-1]);P('plate',[0,0,1]);
+  P('engine',[-1,0,-1]);P('engine',[1,0,-1]);P('engine',[-1,0,1]);P('engine',[1,0,1]);
+  P('tank',[0,1,0]);P('tank',[0,1,1]);
+  const bat=P('battery',[1,1,0]); P('gyro',[-1,1,0]);
+  const fwd=qE(Math.PI/2,0,0); P('engine',[-1,1,-1],fwd); P('engine',[1,1,-1],fwd);
+  const ck=P('cockpit',[0,1,-1]);
+  addWire(bat,ck,true);
+  for(const p of [...ship.parts]) if(p.def.thrust||p.def.torque) addWire(ck,p,true);
+  return ship;
+}
+function spawnPile(){
+  const spots=[[42,1,30],[42.6,1,30.4],[41.6,1,30.6],[42,1.6,30.2],[41.8,2.1,30.3],[44,1,31],[44,1.6,31.1]];
+  spots.forEach((s,i)=>makeStandalone(i<5?DEFS.block:DEFS.plate, new CV(...s), QID));
+}
+
+/* ═════════ 11. WIRES ═════════ */
+const wireNodeGeo=new THREE.SphereGeometry(.045,8,6);
+function addWire(a,b,silent){
+  if(a===b) return;
+  if(wires.some(w=>(w.a===a&&w.b===b)||(w.a===b&&w.b===a))){ if(!silent) toast('ALREADY WIRED','warn'); return; }
+  const col=(a.def.key==='battery'||b.def.key==='battery')?0xffb454:0x7ddc95;
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    Array.from({length:12},()=>new THREE.Vector3())), new THREE.LineBasicMaterial({color:col}));
+  const n1=new THREE.Mesh(wireNodeGeo,new THREE.MeshBasicMaterial({color:col}));
+  const n2=n1.clone(); scene.add(line,n1,n2);
+  wires.push({a,b,line,n1,n2}); refreshPower();
+  if(!silent){ Sfx.weld(); toast('WIRED · '+a.def.name+' -> '+b.def.name,'good'); }
+}
+function updateWires(){
+  for(const w of wires){
+    const p1=w.a.ship.gridToWorld(w.a.localPos), p2=w.b.ship.gridToWorld(w.b.localPos);
+    const pos=w.line.geometry.attributes.position;
+    for(let i=0;i<12;i++){ const t=i/11;
+      pos.setXYZ(i, lerp(p1.x,p2.x,t),
+        lerp(p1.y,p2.y,t)-Math.sin(Math.PI*t)*Math.min(.5,p1.distanceTo(p2)*.1),
+        lerp(p1.z,p2.z,t)); }
+    pos.needsUpdate=true;
+    w.n1.position.copy(p1); w.n2.position.copy(p2);
+  }
+}
+
+/* ═════════ 12. PREFABS ═════════ */
+let PREFABS=[];
+try{ PREFABS=JSON.parse(localStorage.getItem('pcvfk_prefabs')||localStorage.getItem('apogee_prefabs')||'[]')||[]; }catch(e){ PREFABS=[]; }
+function savePrefab(ship){
+  const arr=[...ship.parts], parts=[];
+  for(const p of arr)
+    parts.push({k:p.def.key, a:p.anchor, q:[p.localQuat.x,p.localQuat.y,p.localQuat.z,p.localQuat.w], f:p.fuel||0});
+  const wl=[];
+  for(const w of wires) if(w.a.ship===ship&&w.b.ship===ship)
+    wl.push([arr.indexOf(w.a), arr.indexOf(w.b)]);
+  const name='BUILD '+(PREFABS.length+1);
+  PREFABS.push({name, parts, wires:wl,
+    ai:ship.anchorPart?Math.max(0,arr.indexOf(ship.anchorPart)):0,
+    q0:[ship.body.quaternion.x,ship.body.quaternion.y,ship.body.quaternion.z,ship.body.quaternion.w]});
+  while(PREFABS.length>16) PREFABS.shift();
+  localStorage.setItem('pcvfk_prefabs',JSON.stringify(PREFABS));
+  Sfx.good(); toast('SAVED PREFAB · '+name+' · '+parts.length+' PARTS','good');
+  buildMenuTab();
+}
+function spawnPrefab(pf){
+  const ship=new Ship();
+  const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const px=Math.round((camera.position.x+fwd.x*6)/S)*S;
+  const pz=Math.round((camera.position.z+fwd.z*6)/S)*S;
+  const py=Math.max(camera.position.y+fwd.y*6, 1.6);
+  ship.body.position.set(px,py,pz);
+  if(pf.q0) ship.body.quaternion.set(pf.q0[0],pf.q0[1],pf.q0[2],pf.q0[3]);
+  const arr=[];
+  for(const d of pf.parts){ const def=DEFS[d.k]; if(!def||!d.a) continue;
+    arr.push(ship.addPart(def,d.a,new CQ(d.q[0],d.q[1],d.q[2],d.q[3]),{fuel:d.f})); }
+  if(!arr.length){ ship.destroy(); toast('EMPTY PREFAB','warn'); return; }
+  for(const ij of (pf.wires||[])) if(arr[ij[0]]&&arr[ij[1]]) addWire(arr[ij[0]],arr[ij[1]],true);
+  refreshPower();
+  anchorShipFn(ship, arr[Math.min(pf.ai||0,arr.length-1)]);
+  syncGroup(ship); ship.group.updateMatrixWorld(true);
+  const bb=new THREE.Box3().setFromObject(ship.group);
+  if(bb.min.y<.3) ship.body.position.y+=(.3-bb.min.y);
+  toast('PREFAB SPAWNED · ANCHORED · PRESS B TO RELEASE','good');
+}
+
+/* ═════════ 13. PLAYER ═════════ */
+const player={ yaw:1.05, pitch:0, body:null, grounded:false, groundShip:null, noclip:false };
+player.body=new CANNON.Body({mass:75, material:matPlayer, type:CANNON.Body.DYNAMIC,
+  fixedRotation:true, allowSleep:false, linearDamping:0,
+  collisionFilterGroup:GRP.PLAYER, collisionFilterMask:GRP.GROUND|GRP.PART|GRP.STATIC});
+player.body.addShape(new CANNON.Sphere(.42));
+player.body.position.set(46,1.4,34);
+player.body.updateMassProperties(); world.addBody(player.body);
+const shipsBodyMap=new Map();
+const rayRes=new CANNON.RaycastResult();
+let jetOn=false;
+function playerStep(dt){
+  const b=player.body;
+  if(player.noclip||pilot.on) return;
+  rayRes.reset();
+  world.raycastClosest(b.position, new CV(b.position.x,b.position.y-.56,b.position.z),
+    {collisionFilterMask:GRP.GROUND|GRP.PART|GRP.STATIC, skipBackfaces:true}, rayRes);
+  player.grounded=rayRes.hasHit;
+  player.groundShip=(rayRes.hasHit&&shipsBodyMap.has(rayRes.body))?shipsBodyMap.get(rayRes.body):null;
+  const g=gAt(b.position.y);
+  let fx=0,fz=0;
+  if(keys.has('KeyW'))fz-=1; if(keys.has('KeyS'))fz+=1;
+  if(keys.has('KeyA'))fx-=1; if(keys.has('KeyD'))fx+=1;
+  const len=Math.hypot(fx,fz)||1; fx/=len; fz/=len;
+  const sp=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?8:4.6;
+  const cy=Math.cos(player.yaw), sy=Math.sin(player.yaw);
+  const dx=(fx*cy+fz*sy)*sp, dz=(fz*cy-fx*sy)*sp;
+  let baseX=0, baseZ=0;
+  if(player.grounded&&player.groundShip){
+    baseX=player.groundShip.body.velocity.x; baseZ=player.groundShip.body.velocity.z;
+  }
+  const kAcc=player.grounded?.45:(g<4?.14:.06);
+  b.velocity.x=lerp(b.velocity.x, baseX+dx, kAcc);
+  b.velocity.z=lerp(b.velocity.z, baseZ+dz, kAcc);
+  if(g<4){ jetOn=true;
+    if(keys.has('Space')) b.velocity.y=lerp(b.velocity.y,5,.18);
+    else if(keys.has('KeyC')) b.velocity.y=lerp(b.velocity.y,-5,.18);
+    else b.velocity.y=lerp(b.velocity.y,0,.05);
+  } else { jetOn=false;
+    if(keys.has('Space')&&player.grounded){ b.velocity.y=5.1; player.grounded=false; }
+  }
+  if(b.velocity.y<-55) b.velocity.y=-55;
+  if(b.position.y<-60) respawn();
+}
+function respawn(){ player.body.position.set(46,2,34); player.body.velocity.set(0,0,0); toast('RESPAWNED'); }
+function setNoclip(v){
+  player.noclip=v; player.body.collisionResponse=!v; player.body.velocity.set(0,0,0);
+  toast(v?'NOCLIP ON':'NOCLIP OFF');
+}
+
+/* ═════════ 14. PHYSICS GUN / PLACEMENT ═════════ */
+const state={ started:false, menu:false, prec:false, chat:false };
+const held={ ship:null, part:null, dist:3.5, hp:new CV(), snap:null,
+  quat:new CQ(0,0,0,1), snapPose:null, snapQuat:null };
+const snapBox=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),
+  new THREE.LineBasicMaterial({color:0x7ddc95}));
+const snapFill=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
+  new THREE.MeshBasicMaterial({color:0x7ddc95, transparent:true, opacity:.1, depthWrite:false}));
+snapBox.visible=snapFill.visible=false; scene.add(snapBox,snapFill);
+const aimBox=new THREE.Box3Helper(new THREE.Box3(), new THREE.Color(0xffb454)); aimBox.visible=false; scene.add(aimBox);
+const beamGeo=new THREE.BufferGeometry().setFromPoints(Array.from({length:10},()=>new THREE.Vector3()));
+const beam=new THREE.Line(beamGeo,new THREE.LineBasicMaterial({color:0xffb454,transparent:true,opacity:.55}));
+beam.visible=false; beam.frustumCulled=false; scene.add(beam);
+
+const raycaster=new THREE.Raycaster(); raycaster.far=60;
+const NDC=new THREE.Vector2(0,0);
+function aimPart(skipHeld=true){
+  shipsRoot.updateMatrixWorld(true);
+  raycaster.setFromCamera(NDC,camera);
+  const hits=raycaster.intersectObjects(shipsRoot.children,true);
+  for(const h of hits){ let o=h.object;
+    while(o&&!o.userData.part) o=o.parent;
+    if(o&&(!skipHeld||!held.part||o.userData.part!==held.part))
+      return {part:o.userData.part, dist:h.distance};
+  }
+  return null;
+}
+function startHold(part){
+  if(pilot.on||wiring.on) return;
+  if(part.ship.remote||part.ship.remoteFlying){ toast("YOU CAN'T GRAB "+(part.ship.ownerName||'ANOTHER PILOT')+"'S SHIP",'warn'); Sfx.deny(); return; }
+  const def=part.def, ship=part.ship;
+  const wq=ship.body.quaternion.mult(part.localQuat);
+  const wC=ship.gridToWorld(part.localPos);
+  const anchor=wC.vsub(wq.vmult(defCentroid(def)));
+  const fuel=part.fuel;
+  ship.removePart(part);
+  if(ship.parts.size) checkSplit(ship);
+  held.ship=makeStandalone(def, anchor, wq, fuel);
+  held.part=[...held.ship.parts][0];
+  held.quat=new CQ().copy(wq);
+  const b=held.ship.body;
+  held.dist=clamp(camera.position.distanceTo(new THREE.Vector3(b.position.x,b.position.y,b.position.z)),2.5,8);
+  held.hp.copy(b.position);
+  b.collisionFilterMask=GRP.GROUND|GRP.PART|GRP.STATIC;
+  b.collisionResponse=false; b.allowSleep=false; b.wakeUp();
+  netHoldStart();
+  Sfx.snap();
+}
+function endHold(){
+  if(!held.ship) return;
+  netHoldEnd();
+  const b=held.ship.body;
+  const spd=b.velocity.length(); if(spd>8) b.velocity.scale(8/spd,b.velocity);
+  b.collisionFilterMask=GRP.GROUND|GRP.PART|GRP.PLAYER|GRP.STATIC;
+  b.collisionResponse=true; b.allowSleep=true; b.wakeUp();
+  held.ship=null; held.part=null; held.snap=null; held.snapPose=null; held.snapQuat=null;
+  snapBox.visible=snapFill.visible=false; beam.visible=false;
+  Sfx.click();
+}
+function deleteHeld(){
+  if(!held.ship) return;
+  const p=held.part; endHold();
+  const s=p.ship; s.removePart(p); if(s.parts&&s.parts.size) checkSplit(s);
+  refreshPower(); Sfx.del(); toast('DELETED');
+}
+function rotStep(def){ return (def.cells.length===1&&!def.yawOnly)?Math.PI/4:Math.PI/2; }
+function domAxis(v){
+  const ax=Math.abs(v.x),ay=Math.abs(v.y),az=Math.abs(v.z);
+  if(ax>ay&&ax>az) return new CV(Math.sign(v.x)||1,0,0);
+  if(ay>az) return new CV(0,Math.sign(v.y)||1,0);
+  return new CV(0,0,Math.sign(v.z)||1);
+}
+function rotateHeld(kind,sign){
+  if(!held.part) return;
+  const def=held.part.def;
+  if(def.yawOnly&&kind!=='y'){ toast(def.name+' ROTATES IN YAW ONLY','warn'); return; }
+  let ax;
+  if(kind==='y') ax=new CV(0,1,0);
+  else if(kind==='x'){
+    const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const right=new THREE.Vector3().crossVectors(fwd,UPV);
+    ax=right.lengthSq()<1e-6?new CV(1,0,0):domAxis(right.normalize());
+  } else {
+    const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+    ax=domAxis(fwd);
+  }
+  const q=new CQ().setFromAxisAngle(ax,sign*rotStep(def));
+  held.quat.copy(q.mult(held.quat));
+  Sfx.snap();
+}
+function findSnap(){
+  held.snap=null; held.snapPose=null; held.snapQuat=null;
+  snapBox.visible=snapFill.visible=false;
+  if(!held.part) return;
+  const hp=held.hp, def=held.part.def;
+  let best=null;
+  for(const ship of ships){
+    if(ship===held.ship) continue;
+    if(ship.remote||ship.remoteFlying) continue;
+    const lp=ship.worldToGrid(hp);
+    let nc=null, nd=1e9;
+    for(const p of ship.parts) for(const c of p.cells){
+      const d=(c[0]*S-lp.x)**2+(c[1]*S-lp.y)**2+(c[2]*S-lp.z)**2;
+      if(d<nd){ nd=d; nc=c; }
+    }
+    if(!nc||nd>6.25) continue;
+    const cands=[];
+    const dx=lp.x-nc[0]*S, dy=lp.y-nc[1]*S, dz=lp.z-nc[2]*S;
+    const dom=[[Math.abs(dx),[Math.sign(dx)||1,0,0]],[Math.abs(dy),[0,Math.sign(dy)||1,0]],[Math.abs(dz),[0,0,Math.sign(dz)||1]]]
+      .sort((a,b)=>b[0]-a[0]);
+    cands.push([nc[0]+dom[0][1][0],nc[1]+dom[0][1][1],nc[2]+dom[0][1][2]]);
+    if(dom[1][0]>.42) cands.push([nc[0]+dom[1][1][0],nc[1]+dom[1][1][1],nc[2]+dom[1][1][2]]);
+    cands.push([Math.round(lp.x/S),Math.round(lp.y/S),Math.round(lp.z/S)]);
+    for(const cell of cands){
+      const wpos=ship.gridToWorld(new CV(cell[0]*S,cell[1]*S,cell[2]*S));
+      const dd=wpos.distanceTo(hp); if(dd>1.7) continue;
+      const lq=orientFor(ship,def,held.quat);
+      const cells=rotCells(def,lq).map(c=>[c[0]+cell[0],c[1]+cell[1],c[2]+cell[2]]);
+      let free=true, adj=false;
+      for(const c of cells){ if(ship.cellMap.has(key3(...c))) free=false;
+        for(const d of DIRS) if(ship.cellMap.has(key3(c[0]+d[0],c[1]+d[1],c[2]+d[2]))) adj=true; }
+      if(!free||!adj) continue;
+      if(!best||dd<best.d) best={type:'ship',ship,cell,d:dd,lq};
+    }
+  }
+  const lqw=gridQuat(def,held.quat);
+  const wcells=rotCells(def,lqw);
+  const wpos=new CV(Math.round(hp.x/S)*S, Math.max(0,Math.floor(hp.y/S))*S+S/2, Math.round(hp.z/S)*S);
+  const wdist=wpos.distanceTo(hp);
+  if(wdist<1.2&&(hp.y<3.2||!best)){
+    let free=true;
+    for(const ship of ships){ if(ship===held.ship) continue;
+      if(ship.remote||ship.remoteFlying) continue;
+      const lp=ship.worldToGrid(wpos);
+      const lc=[Math.round(lp.x/S),Math.round(lp.y/S),Math.round(lp.z/S)];
+      for(const c of wcells) if(ship.cellMap.has(key3(lc[0]+c[0],lc[1]+c[1],lc[2]+c[2]))) free=false;
+    }
+    if(free&&(!best||wdist<best.d)) best={type:'world',pos:wpos,d:wdist,lq:lqw};
+  }
+  if(best){
+    held.snap=best;
+    if(best.type==='ship'){
+      held.snapPose=best.ship.gridToWorld(new CV(best.cell[0]*S,best.cell[1]*S,best.cell[2]*S));
+      held.snapQuat=new CQ().copy(best.ship.body.quaternion).mult(best.lq);
+    } else {
+      held.snapPose=best.pos.clone();
+      held.snapQuat=best.lq.clone();
+    }
+    showSnapBox();
+  }
+}
+function showSnapBox(){
+  const def=held.part.def;
+  const min=new THREE.Vector3(1e9,1e9,1e9), max=new THREE.Vector3(-1e9,-1e9,-1e9);
+  for(const c of def.cells){
+    const w=held.snapQuat.vmult(new CV(c[0]*S,c[1]*S,c[2]*S));
+    const p=new THREE.Vector3(held.snapPose.x+w.x, held.snapPose.y+w.y, held.snapPose.z+w.z);
+    min.min(p); max.max(p);
+  }
+  min.addScalar(-.26); max.addScalar(.26);
+  const gcol=new THREE.Color(0x7ddc95);
+  snapBox.material.color=gcol; snapFill.material.color=gcol;
+  snapBox.scale.copy(max.clone().sub(min)); snapBox.position.copy(min.clone().add(max).multiplyScalar(.5));
+  snapFill.scale.copy(snapBox.scale); snapFill.position.copy(snapBox.position);
+  snapBox.visible=snapFill.visible=true;
+}
+function tryWeld(){
+  if(!held.part) return;
+  if(!held.snap){ Sfx.deny(); toast('NO GRID SNAP - HOLD R NEAR A SHIP OR THE GROUND','warn'); return; }
+  const part=held.part, def=part.def, fuel=part.fuel;
+  const wq=new CQ().copy(held.quat);
+  const snap=held.snap;
+  const snapPose=held.snapPose.clone();
+  const hs=held.ship;
+  endHold();
+  hs.destroy();
+  let made=null;
+  if(snap.type==='ship') made=weldIntoShip(snap.ship,def,snap.cell,wq,fuel);
+  else made=placeNewShip(def,snapPose,wq,fuel);
+  if(!made){ makeStandalone(def,snapPose,wq,fuel); Sfx.deny(); toast('CANNOT WELD THERE','warn'); return; }
+  refreshPower(); Sfx.weld(); toast('WELDED · '+def.name,'good');
+  if(made.ship.anchored&&!made.ship.remote) netAnchorShip(made.ship);
+}
+
+/* ═════════ 15. WIRING MODE ═════════ */
+const wiring={on:false, sel:null};
+const wsel=new THREE.Mesh(new THREE.SphereGeometry(.14,10,8),
+  new THREE.MeshBasicMaterial({color:0xffb454,transparent:true,opacity:.9}));
+wsel.visible=false; scene.add(wsel);
+function toggleWiring(force){
+  wiring.on=force!==undefined?force:!wiring.on;
+  wiring.sel=null; wsel.visible=false;
+  el('banner').hidden=!wiring.on;
+  el('banner').textContent='W I R I N G';
+  if(wiring.on&&held.ship) endHold();
+  toast(wiring.on?'WIRING - BATTERY -> COCKPIT -> THRUSTERS':'WIRING OFF');
+}
+function wireClick(aim){
+  if(!aim) return;
+  const p=aim.part;
+  if(p.ship.remote||p.ship.remoteFlying){ toast('THAT SHIP BELONGS TO '+(p.ship.ownerName||'ANOTHER PILOT'),'warn'); Sfx.deny(); return; }
+  if(!wiring.sel){
+    if(p.def.key!=='battery'&&!p.def.isCockpit){
+      Sfx.deny(); toast('PICK A BATTERY OR A COCKPIT FIRST','warn'); return;
+    }
+    wiring.sel=p; wsel.visible=true;
+    wsel.position.copy(p.ship.gridToWorld(p.localPos));
+    Sfx.click();
+  } else {
+    if(p===wiring.sel){ wiring.sel=null; wsel.visible=false; return; }
+    const sel=wiring.sel, isBat=sel.def.key==='battery', isCk=sel.def.isCockpit;
+    const ok = isBat ? p.def.isCockpit
+             : isCk ? (p.def.key==='battery'||p.def.thrust||p.def.torque||p.def.stab)
+             : false;
+    if(!ok){
+      Sfx.deny();
+      toast(isBat?'BATTERIES POWER COCKPITS - THEN WIRE COCKPIT -> THRUSTER'
+                 :'COCKPIT CONNECTS TO: BATTERY · ENGINE · GYRO · STABILIZER','warn');
+      return;
+    }
+    addWire(sel,p);
+    wiring.sel=null; wsel.visible=false;
+  }
+}
+
+/* ═════════ 16. PILOTING ═════════ */
+const pilot={on:false, ship:null, cockpit:null, yaw:0, pitch:0, groups:null, thr:{},
+  fovBoost:0, thrLevel:0, steer:{yaw:0,pitch:0}};
+function shipInertia(body){
+  const i=body.inertia||{x:1,y:1,z:1};
+  return Math.max((Math.abs(i.x)+Math.abs(i.y)+Math.abs(i.z))/3,1);
+}
+function toggleWeight(){
+  SET.weight=!SET.weight; saveSet(); applySettings();
+  toast(SET.weight?'SHIP WEIGHT ON':'SHIP WEIGHT OFF - SHIPS ARE WEIGHTLESS');
+}
+function toggleMGyro(){
+  SET.mgyro=!SET.mgyro; saveSet();
+  pilot.steer.yaw=0; pilot.steer.pitch=0; pilot.yaw=0; pilot.pitch=0;
+  toast(SET.mgyro?'MOUSE GYRO ON - MOUSE STEERS THE SHIP':'MOUSE GYRO OFF');
+}
+function enterPilot(cockpit){
+  if(held.ship) endHold();
+  if(wiring.on) toggleWiring(false);
+  pilot.on=true; pilot.ship=cockpit.ship; pilot.cockpit=cockpit;
+  pilot.yaw=0; pilot.pitch=0; pilot.thr={};
+  pilot.steer.yaw=0; pilot.steer.pitch=0;
+  world.removeBody(player.body);
+  cockpit.mesh.visible=false;
+  computeGroups();
+  netFlyStart(pilot.ship);
+  el('pilot').hidden=false;
+  toast('PILOTING - E TO EXIT','good'); Sfx.good();
+}
+function exitPilot(silent){
+  if(!pilot.on) return;
+  netFlyEnd(pilot.ship);
+  const ck=pilot.cockpit;
+  const uq=pilot.ship.body.quaternion.mult(ck.localQuat);
+  const fwdW=uq.vmult(new CV(0,0,1));
+  const pos=pilot.ship.gridToWorld(ck.localPos);
+  player.body.position.set(pos.x+fwdW.x*1.1, pos.y+1.5, pos.z+fwdW.z*1.1);
+  player.body.velocity.copy(pilot.ship.body.velocity);
+  player.body.angularVelocity.set(0,0,0);
+  world.addBody(player.body);
+  if(ck.mesh) ck.mesh.visible=true;
+  pilot.on=false; el('pilot').hidden=true;
+  if(engG) engG.gain.setTargetAtTime(0,AC?AC.currentTime:0,.1);
+  if(!silent) toast('EXITED COCKPIT');
+}
+function computeGroups(){
+  if(!pilot.cockpit) return;
+  const ck=pilot.cockpit, g={up:[],down:[],fwd:[],back:[],left:[],right:[],gyro:[],stab:[]};
+  const F=ck.localQuat.vmult(new CV(0,0,1)), U=ck.localQuat.vmult(new CV(0,1,0)), R=ck.localQuat.vmult(new CV(1,0,0));
+  const neg=v=>new CV(-v.x,-v.y,-v.z);
+  const axes=[[U,'up'],[neg(U),'down'],[F,'fwd'],[neg(F),'back'],[R,'right'],[neg(R),'left']];
+  for(const p of pilot.ship.parts){
+    if(p.def.thrust){ const d=p.localQuat.vmult(new CV(0,1,0));
+      let bg=null,bd=0;
+      for(const [v,n] of axes){ const dt=d.dot(v); if(dt>bd){bd=dt;bg=n;} }
+      if(bg&&bd>.55) g[bg].push(p);
+    }
+    if(p.def.torque) g.gyro.push(p);
+    if(p.def.stab) g.stab.push(p);
+  }
+  pilot.groups=g;
+}
+let _npT=0,_nfT=0,_nwT=0;
+function warnNoPwr(){ const t=performance.now(); if(t-_npT>2500){_npT=t;toast('NO POWER - WIRE A BATTERY TO THE COCKPIT [N]','warn');} }
+function warnNoFuel(){ const t=performance.now(); if(t-_nfT>2500){_nfT=t;toast('OUT OF FUEL - REFUEL AT THE PUMP','warn');} }
+function warnWiring(n){ const t=performance.now(); if(t-_nwT>2500){_nwT=t;
+  toast(n+' PART'+(n>1?'S':'')+' NOT WIRED TO THE COCKPIT - PRESS N, OR M -> TOOLS -> AUTO-WIRE','warn');} }
+function pilotStep(dt){
+  const ship=pilot.ship;
+  ship.body.wakeUp();
+  if(!pilot.groups) computeGroups();
+  const g=pilot.groups;
+  const want={up:keys.has('Space'),down:keys.has('KeyC'),
+    fwd:keys.has('KeyW'),back:keys.has('KeyS')};
+  const all=keys.has('ShiftLeft')||keys.has('ShiftRight');
+  let totalThr=0, drained=false, unwired=0, cockpitDead=false;
+  for(const grp of ['up','down','fwd','back','left','right']){
+    const fire=all||want[grp];
+    pilot.thr[grp]=lerp(pilot.thr[grp]||0, fire?1:0, .25);
+    const t=pilot.thr[grp];
+    if(t<.02||!g[grp].length) continue;
+    for(const p of g[grp]){
+      let eff=t;
+      if(!p.powered){ if(ship.poweredCockpit) unwired++; else cockpitDead=true; eff=0; }
+      if(ship.fuelTotal()<=0){ warnNoFuel(); eff=0; }
+      if(eff<=0) continue;
+      const dir=ship.body.quaternion.mult(p.localQuat).vmult(new CV(0,1,0));
+      const wp=ship.gridToWorld(p.localPos);
+      ship.body.applyForce(dir.scale(p.def.thrust*SET.epower*eff), wp.vsub(ship.body.position));
+      let need=p.def.burn*eff*dt;
+      for(const tk of ship.parts){ if(need<=0) break;
+        if(tk.fuel>0){ const take=Math.min(tk.fuel,need); tk.fuel-=take; need-=take; drained=true; } }
+      totalThr+=eff;
+    }
+  }
+  if(cockpitDead) warnNoPwr();
+  else if(unwired) warnWiring(unwired);
+  if(drained) ship.refresh();
+  pilot.thrLevel=totalThr;
+  if(engG){ engG.gain.setTargetAtTime(Math.min(.55,totalThr*.2),AC?AC.currentTime:0,.08);
+    if(engLP) engLP.frequency.setTargetAtTime(220+420*Math.min(1,totalThr/6),AC?AC.currentTime:0,.1); }
+  const kbGyro=keys.has('KeyA')||keys.has('KeyD')||keys.has('KeyR')||keys.has('KeyF')||keys.has('KeyZ')||keys.has('KeyX');
+  if(g.gyro.length){
+    let gn=0; for(const p of g.gyro) if(p.powered) gn++;
+    const ck=pilot.cockpit;
+    const ax=v=>ship.body.quaternion.mult(ck.localQuat).vmult(v);
+    const st=gn>0?g.gyro[0].def.torque*gn:0;
+    const capW=clamp(2.2*Math.sqrt(60/Math.max(ship.body.mass,20)),.25,2.5);
+    const fire=(a,s)=>{ const w=ship.body.angularVelocity;
+      if(w.dot(a)*Math.sign(s)<capW) ship.body.applyTorque(a.scale(s)); };
+    if(st>0){
+      if(keys.has('KeyD')){const a=ax(new CV(0,1,0)); fire(a,-st);}
+      if(keys.has('KeyA')){const a=ax(new CV(0,1,0)); fire(a,st);}
+      if(keys.has('KeyF')){const a=ax(new CV(1,0,0)); fire(a,st);}
+      if(keys.has('KeyR')){const a=ax(new CV(1,0,0)); fire(a,-st);}
+      if(keys.has('KeyZ')){const a=ax(new CV(0,0,1)); fire(a,st);}
+      if(keys.has('KeyX')){const a=ax(new CV(0,0,1)); fire(a,-st);}
+    } else if(kbGyro) warnWiring(g.gyro.length);
+  }
+  if(SET.mgyro){
+    const dk=Math.exp(-dt*5);
+    pilot.steer.yaw*=dk; pilot.steer.pitch*=dk;
+    if(!kbGyro){
+      const ck=pilot.cockpit;
+      const cq=new CQ().copy(ship.body.quaternion).mult(ck.localQuat);
+      const up=cq.vmult(new CV(0,1,0)), rt=cq.vmult(new CV(1,0,0));
+      const w=ship.body.angularVelocity;
+      const I=shipInertia(ship.body);
+      const go=(axis,err)=>{ const tq=I*7*err, m=I*16;
+        ship.body.applyTorque(axis.scale(clamp(tq,-m,m))); };
+      go(up, pilot.steer.yaw-w.dot(up));
+      go(rt, pilot.steer.pitch-w.dot(rt));
+    }
+  }
+}
+function stabStep(){
+  const kb=keys.has('KeyA')||keys.has('KeyD')||keys.has('KeyR')||keys.has('KeyF')||keys.has('KeyZ')||keys.has('KeyX');
+  const steer=SET.mgyro&&(Math.abs(pilot.steer.yaw)+Math.abs(pilot.steer.pitch)>.25);
+  for(const s of ships){
+    if(s.body.type!==CANNON.Body.DYNAMIC) continue;
+    if(s.body.sleepState===CANNON.Body.SLEEPING) continue;
+    if(held.ship===s) continue;
+    if(pilot.on&&s===pilot.ship&&(kb||steer)) continue;
+    let n=0;
+    for(const p of s.parts) if(p.def.stab&&p.powered) n++;
+    if(!n) continue;
+    const b=s.body;
+    const I=shipInertia(b);
+    const shipUp=b.quaternion.vmult(new CV(0,1,0));
+    const corr=shipUp.cross(new CV(0,1,0));
+    const w=b.angularVelocity;
+    const P=I*20*n, D=I*8*n;
+    const t=new CV(corr.x*P-w.x*D, corr.y*P-w.y*D, corr.z*P-w.z*D);
+    const cap=I*60*n, tl=t.length();
+    if(tl>cap) t.scale(cap/tl,t);
+    b.applyTorque(t);
+  }
+}
+function tryPump(){
+  raycaster.setFromCamera(NDC,camera); raycaster.far=5;
+  const hit=raycaster.intersectObjects(pumpMeshes,true)[0];
+  raycaster.far=60;
+  if(!hit) return false;
+  let n=0;
+  for(const s of ships){ if(s.remote||s.remoteFlying) continue;
+    if(s.fuelCap()<=0) continue;
+    if(Math.hypot(s.body.position.x-48,s.body.position.z-30)<14){
+      for(const p of s.parts) if(p.def.fuelCap) p.fuel=p.def.fuelCap;
+      s.refresh(); n++; } }
+  toast(n?('REFUELED '+n+' SHIP'+(n>1?'S':'')):'NO SHIPS NEAR THE PUMP',n?'good':'warn');
+  if(n) Sfx.good();
+  return true;
+}
+
+/* ═════════ 17. CONTINUOUS FORCES ═════════ */
+function applyForces(dt){
+  for(const s of ships){
+    const b=s.body;
+    if(!SET.weight) continue;
+    if(b.type!==CANNON.Body.DYNAMIC) continue;
+    if(b.sleepState===CANNON.Body.SLEEPING) continue;
+    b.applyForce(new CV(0,-gAt(b.position.y)*b.mass,0));
+  }
+  if(!player.noclip&&!pilot.on){
+    player.body.applyForce(new CV(0,-gAt(player.body.position.y)*player.body.mass,0));
+    playerStep(dt);
+  }
+  if(pilot.on) pilotStep(dt);
+  stabStep();
+  if(held.ship){
+    const b=held.ship.body;
+    const tp=held.snap?held.snapPose:held.hp;
+    const tq=held.snap?held.snapQuat:held.quat;
+    const dv=new CV(tp.x-b.position.x,tp.y-b.position.y,tp.z-b.position.z);
+    let v=dv.scale(1/FIXED);
+    const len=v.length(), md=22;
+    if(len>md) v.scale(md/len, v);
+    b.velocity.copy(v);
+    b.angularVelocity.set(0,0,0);
+    const tq2=new CQ();
+    qSlerp(b.quaternion,tq,.4,tq2);
+    b.quaternion.copy(tq2);
+  }
+}
+
+/* ═════════ 18. INPUT ═════════ */
+const keys=new Set();
+const UPV=new THREE.Vector3(0,1,0);
+function lockPointer(){ try{ const p=canvas.requestPointerLock(); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
+function isLocked(){ return document.pointerLockElement===canvas; }
+canvas.addEventListener('click',()=>{ if(state.started&&!state.menu&&!state.chat&&!isLocked()) lockPointer(); });
+document.addEventListener('pointerlockchange',()=>{
+  if(!isLocked()&&state.started&&!state.menu&&!state.chat) openMenu();
+});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('mousemove',e=>{
+  if(!isLocked()||state.menu) return;
+  const dx=clamp(e.movementX,-200,200), dy=clamp(e.movementY,-200,200);
+  if(state.prec&&held.ship){
+    const k=held.dist*.0028;
+    const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const right=new THREE.Vector3().crossVectors(fwd,UPV).normalize();
+    const upv=new THREE.Vector3().crossVectors(right,fwd).normalize();
+    const mv=new THREE.Vector3().addScaledVector(right,dx*k).addScaledVector(upv,-dy*k);
+    held.hp.x+=mv.x; held.hp.z+=mv.z;
+    held.hp.y=Math.max(.15,held.hp.y+mv.y);
+    return;
+  }
+  if(pilot.on){
+    if(SET.mgyro){
+      const k=.006*SET.sens;
+      pilot.steer.yaw=clamp(pilot.steer.yaw-dx*k,-1.8,1.8);
+      pilot.steer.pitch=clamp(pilot.steer.pitch+dy*k,-1.8,1.8);
+    } else {
+      const s=.0022*SET.sens;
+      pilot.yaw-=dx*s; pilot.pitch=clamp(pilot.pitch-dy*s,-1.45,1.45);
+    }
+  } else {
+    const s=.0022*SET.sens;
+    player.yaw-=dx*s; player.pitch=clamp(player.pitch-dy*s,-1.5,1.5);
+  }
+});
+document.addEventListener('mousedown',e=>{
+  if(!isLocked()||state.menu||!state.started) return;
+  if(e.button===0){
+    if(wiring.on){ wireClick(aimPart()); return; }
+    if(pilot.on) return;
+    const a=aimPart();
+    if(held.ship){
+      if(a&&a.dist<50){ endHold(); startHold(a.part); }
+      else endHold();
+    } else if(a&&a.dist<50){
+      startHold(a.part);
+    }
+  }
+  if(e.button===2){
+    if(wiring.on){ wiring.sel=null; wsel.visible=false; return; }
+    if(held.ship) tryWeld();
+  }
+});
+document.addEventListener('wheel',e=>{
+  if(!isLocked()||state.menu) return;
+  e.preventDefault();
+  if(held.ship){
+    held.dist=clamp(held.dist+Math.sign(e.deltaY)*.45,1.8,10);
+    if(state.prec){
+      const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+      const d=Math.sign(e.deltaY)*.45;
+      held.hp.x+=fwd.x*d; held.hp.y=Math.max(.15,held.hp.y+fwd.y*d); held.hp.z+=fwd.z*d;
+    }
+  }
+},{passive:false});
+function openChat(){
+  state.chat=true; chatBar.classList.add('open'); chatInput.value='';
+  if(isLocked()) document.exitPointerLock();
+  setTimeout(()=>chatInput.focus(),0);
+}
+function closeChat(){
+  state.chat=false; chatBar.classList.remove('open'); chatInput.blur();
+  lockPointer();
+}
+chatInput.addEventListener('keydown',e=>{
+  e.stopPropagation();
+  if(e.key==='Enter'){
+    const v=chatInput.value.trim();
+    if(v){ addChat(MP.name,v); sendNet({t:'c',name:MP.name,msg:v}); }
+    closeChat();
+  } else if(e.key==='Escape'){ closeChat(); }
+});
+document.addEventListener('keydown',e=>{
+  if(state.chat) return;
+  if(e.code==='Space') e.preventDefault();
+  if(state.menu){ if(e.code==='Escape'||e.code==='KeyM') closeMenu(); return; }
+  if(askState.open){
+    if(e.code==='KeyY'||e.code==='KeyN'){ askAnswer(e.code==='KeyY'); return; }
+    return;
+  }
+  if(!state.started) return;
+  keys.add(e.code);
+  if(e.code==='Enter'){ e.preventDefault(); openChat(); return; }
+  if(e.code==='KeyM'){ openMenu(); return; }
+  if(e.repeat) return;
+  if(e.code==='KeyV'&&!pilot.on) setNoclip(!player.noclip);
+  if(e.code==='KeyN'&&!pilot.on) toggleWiring();
+  if(e.code==='KeyT') toggleWeight();
+  if(e.code==='KeyG') toggleMGyro();
+  if(e.code==='KeyB'&&!pilot.on){
+    const a=aimPart();
+    if(a&&a.dist<15){
+      if(a.part.ship.remoteFlying){ toast('SOMEONE IS FLYING THAT SHIP','warn'); return; }
+      if(a.part.ship.remote){ toast("THAT'S "+(a.part.ship.ownerName||'ANOTHER PILOT')+"'S BUILD",'warn'); return; }
+      if(a.part.ship.anchored) releaseShip(a.part.ship);
+      else anchorShipFn(a.part.ship, a.part);
+    } else { Sfx.deny(); toast('AIM AT A PART TO ANCHOR / RELEASE','warn'); }
+  }
+  if(e.code==='KeyE'&&!state.prec&&!held.ship){
+    if(pilot.on){ exitPilot(); return; }
+    const a=aimPart();
+    if(a&&a.dist<4.5&&a.part.def.isCockpit){
+      const ship=a.part.ship;
+      const myId=MP.peer?MP.peer.id:'local';
+      const isMine=!ship.remote&&(ship.owner===null||ship.owner===myId);
+      if(isMine){
+        if(ship.anchored){ Sfx.deny(); toast('SHIP IS ANCHORED - PRESS B TO RELEASE FIRST','warn'); return; }
+        enterPilot(a.part); return;
+      }
+      if(ship.remoteFlying){ toast('SOMEONE IS FLYING THAT SHIP','warn'); return; }
+      netAskCockpit(ship);
+      toast('ASKING '+(ship.ownerName||'THE OWNER')+' FOR THE COCKPIT...','good');
+      return;
+    }
+    tryPump();
+  }
+  if(e.code==='KeyR'){ if(held.ship) state.prec=true; }
+  if((e.code==='KeyQ'||e.code==='KeyE')&&held.ship&&!pilot.on&&!wiring.on)
+    rotateHeld(e.shiftKey?'roll':'y', e.code==='KeyQ'?1:-1);
+  if((e.code==='KeyZ'||e.code==='KeyC')&&held.ship&&!pilot.on&&!wiring.on)
+    rotateHeld('x', e.code==='KeyZ'?1:-1);
+  if(e.code==='KeyX'){
+    if(held.ship){ deleteHeld(); }
+    else { const a=aimPart(); if(a&&a.dist<10){
+      if(a.part.ship.remote||a.part.ship.remoteFlying){ toast("YOU CAN'T DELETE "+(a.part.ship.ownerName||'ANOTHER PILOT')+"'S SHIP",'warn'); return; }
+      if(e.shiftKey){ const s=a.part.ship; const n=s.parts.size; s.destroy(); netRemoveShip(s); refreshPower(); Sfx.del(); toast('SHIP DELETED · '+n+' PARTS'); }
+      else { const s=a.part.ship; const p=a.part; s.removePart(p);
+        if(s.parts&&s.parts.size){ checkSplit(s); if(s.anchored) netAnchorShip(s); }
+        refreshPower(); Sfx.del(); toast('DELETED '+p.def.name); }
+    } }
+  }
+});
+document.addEventListener('keyup',e=>{
+  keys.delete(e.code);
+  if(e.code==='KeyR'){
+    state.prec=false;
+    if(held.ship){ held.snap=null; held.snapPose=null; held.snapQuat=null; }
+    snapBox.visible=snapFill.visible=false;
+  }
+});
+
+/* ═════════ 19. MENU (BUILD) ═════════ */
+const CATS=[['plates','PLATES'],['structure','STRUCTURE'],['propulsion','PROPULSION'],['power','POWER'],['flight','FLIGHT'],['prefabs','PREFABS'],['tools','TOOLS']];
+let curCat='plates', curTab='build';
+function isoThumb(def){
+  const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d');
+  const src=defTex(def).image; const pat=g.createPattern(src,'repeat');
+  const cx=32, cy0=36, sc=17;
+  if(def.shape==='cyl'){
+    const r=def.size[0]/2*sc*1.7, h=def.size[1]*sc*1.15;
+    g.fillStyle=pat; g.fillRect(cx-r,cy0-h/2,r*2,h);
+    g.fillStyle='rgba(0,0,0,.28)'; g.fillRect(cx,cy0-h/2,r,h);
+    g.fillStyle=pat; g.beginPath(); g.ellipse(cx,cy0-h/2,r,r*.42,0,0,7); g.fill();
+    g.fillStyle='rgba(255,255,255,.14)'; g.beginPath(); g.ellipse(cx,cy0-h/2,r,r*.42,0,0,7); g.fill();
+    g.strokeStyle='rgba(0,0,0,.5)'; g.strokeRect(cx-r,cy0-h/2,r*2,h);
+    return c;
+  }
+  const hx=def.size[0]/2*sc*1.5, hy=def.size[1]*sc*1.1, hz=def.size[2]/2*sc*1.5;
+  const P=(ix,iy,iz)=>[cx+(ix*hx-iz*hz)*.866, cy0+(ix*hx+iz*hz)*.5-iy*hy];
+  const quad=(a,b,c2,d,shade)=>{ g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(...c2); g.lineTo(...d); g.closePath();
+    g.fillStyle=pat; g.fill(); if(shade){ g.fillStyle='rgba(0,0,0,'+shade+')'; g.fill(); } g.strokeStyle='rgba(0,0,0,.45)'; g.stroke(); };
+  quad(P(-1,1,-1),P(1,1,-1),P(1,1,1),P(-1,1,1),0);
+  quad(P(1,1,-1),P(1,1,1),P(1,0,1),P(1,0,-1),.22);
+  quad(P(-1,1,1),P(1,1,1),P(1,0,1),P(-1,0,1),.4);
+  return c;
+}
+function buildMenuTab(){
+  const rail=el('mRail'), main=el('mMain');
+  rail.style.display=curTab==='build'?'flex':'none';
+  rail.innerHTML='';
+  if(curTab==='build'){
+    for(const [id,label] of CATS){
+      const b=document.createElement('button'); b.textContent=label;
+      b.className=id===curCat?'act':''; b.onclick=()=>{ curCat=id; Sfx.click(); buildMenuTab(); };
+      rail.appendChild(b);
+    }
+    main.innerHTML='';
+    const grid=document.createElement('div'); grid.className='cards'; main.appendChild(grid);
+    if(curCat==='tools'){
+      const tools=[
+        ['AUTO-WIRE SHIPS','battery -> cockpit -> every engine & gyro',()=>{
+          let n=0;
+          for(const s of ships){
+            if(s.remote||s.remoteFlying) continue;
+            let bat=null,ck=null;
+            for(const p of s.parts){ if(p.def.key==='battery'&&!bat) bat=p; if(p.def.isCockpit&&!ck) ck=p; }
+            if(!bat||!ck) continue;
+            addWire(bat,ck,true);
+            for(const p of s.parts)
+              if(p!==bat&&p!==ck&&(p.def.thrust||p.def.torque||p.def.stab)) addWire(ck,p,true);
+            n++;
+          }
+          refreshPower();
+          toast(n?('AUTO-WIRED '+n+' SHIP'+(n>1?'S':'')):'NO SHIPS WITH BATTERY + COCKPIT',n?'good':'warn');
+        }],
+        ['REFUEL ALL','fill every tank on the field',()=>{ for(const s of ships){ if(s.remote||s.remoteFlying) continue; for(const p of s.parts) if(p.def.fuelCap) p.fuel=p.def.fuelCap; s.refresh(); } toast('REFUELED','good'); Sfx.good(); }],
+        ['COPY JOIN CODE','put the host code on your clipboard',async()=>{ if(!MP.code){ toast('NOT HOSTING','warn'); return; } const ok=await copyText(MP.code); toast(ok?'CODE COPIED - '+MP.code:'COPY BLOCKED BY BROWSER',ok?'good':'warn'); }],
+        ['CLEAR WIRES','remove all power wiring',()=>{ for(const w of wires) scene.remove(w.line,w.n1,w.n2); wires.length=0; refreshPower(); toast('WIRES CLEARED'); }],
+        ['REMOVE ALL SHIPS','delete everything YOU built',()=>{ for(const s of [...ships]){ if(!s.remote) s.destroy(); } refreshPower(); buildShip=null; toast('FIELD CLEARED','warn'); }],
+        ['RESPAWN STARTER','bring back the hover-drone',()=>{ spawnStarter(); toast('STARTER DRONE READY','good'); }],
+        ['GO TO AIRPORT','teleport back to the apron',()=>{ respawn(); }],
+      ];
+      for(const t of tools){
+        const card=document.createElement('div'); card.className='card tool';
+        const ico=document.createElement('div'); ico.className='t-ico'; ico.textContent=t[0].split(' ')[0];
+        card.appendChild(ico);
+        const d=document.createElement('div');
+        d.innerHTML='<div class="c-name">'+t[0]+'</div><div class="c-spec">'+t[1]+'</div>';
+        card.appendChild(d);
+        card.onclick=()=>{ t[2](); closeMenu(); };
+        grid.appendChild(card);
+      }
+      return;
+    }
+    if(curCat==='prefabs'){
+      const inBuild=buildShip&&buildShip.anchored;
+      const scard=document.createElement('div'); scard.className='card tool';
+      const sico=document.createElement('div'); sico.className='t-ico'; sico.textContent='SAVE';
+      scard.appendChild(sico);
+      const sd=document.createElement('div');
+      sd.innerHTML='<div class="c-name">SAVE CURRENT BUILD</div><div class="c-spec">'+
+        (inBuild?('anchored · '+buildShip.parts.size+' parts - click to save')
+                :'must be in build mode - press B on a block')+'</div>';
+      scard.appendChild(sd);
+      scard.onclick=()=>{
+        if(buildShip&&buildShip.anchored) savePrefab(buildShip);
+        else { Sfx.deny(); toast('MUST BE IN BUILD MODE - PRESS B ON A BLOCK FIRST','warn'); }
+      };
+      grid.appendChild(scard);
+      if(!PREFABS.length){
+        const n=document.createElement('div'); n.className='set-note';
+        n.textContent='No prefabs yet - anchor a build with B, then save it here. Prefabs persist in your browser.';
+        main.appendChild(n);
+      }
+      PREFABS.forEach((pf,idx)=>{
+        const card=document.createElement('div'); card.className='card';
+        const def0=DEFS[pf.parts[0]&&pf.parts[0].k];
+        if(def0) card.appendChild(isoThumb(def0));
+        else { const ico=document.createElement('div'); ico.className='t-ico'; ico.textContent='SHIP'; card.appendChild(ico); }
+        const d=document.createElement('div');
+        d.innerHTML='<div class="c-name">'+pf.name+'</div><div class="c-spec">'+pf.parts.length+' parts · click to spawn</div>';
+        card.appendChild(d);
+        const xb=document.createElement('button'); xb.className='x-btn'; xb.textContent='x'; xb.title='delete prefab';
+        xb.onclick=ev=>{ ev.stopPropagation(); PREFABS.splice(idx,1);
+          localStorage.setItem('pcvfk_prefabs',JSON.stringify(PREFABS)); Sfx.del(); buildMenuTab(); };
+        card.appendChild(xb);
+        card.onclick=()=>{ spawnPrefab(pf); closeMenu(); };
+        grid.appendChild(card);
+      });
+      return;
+    }
+    for(const k in DEFS){ const def=DEFS[k];
+      if(def.cat!==curCat) continue;
+      const card=document.createElement('button'); card.className='card';
+      card.appendChild(isoThumb(def));
+      const d=document.createElement('div');
+      d.innerHTML='<div class="c-name">'+def.name+'</div><div class="c-spec">'+def.spec+'</div>';
+      card.appendChild(d);
+      card.onclick=()=>{
+        if(pilot.on) exitPilot(true);
+        if(held.ship) endHold();
+        const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+        const center=new CV(camera.position.x+dir.x*3.4, Math.max(.8,camera.position.y+dir.y*3.4), camera.position.z+dir.z*3.4);
+        const anchor=center.vsub(defCentroid(def));
+        held.ship=makeStandalone(def, anchor, QID, def.fuelCap);
+        held.part=[...held.ship.parts][0];
+        held.quat=new CQ(0,0,0,1);
+        held.dist=3.4; held.hp.copy(anchor);
+        held.ship.body.collisionResponse=false;
+        held.ship.body.allowSleep=false;
+        held.ship.body.collisionFilterMask=GRP.GROUND|GRP.PART|GRP.STATIC;
+        Sfx.snap(); toast(def.name+' - HOLD R TO GRID-PLACE, RMB TO WELD','good');
+        closeMenu();
+      };
+      grid.appendChild(card);
+    }
+  } else if(curTab==='settings'){ buildSettings(main); }
+  else { main.innerHTML=''; main.appendChild(helpDoc()); }
+  el('mInfo').textContent=ships.size+' SHIPS · '+wires.length+' WIRES · '+PREFABS.length+' PREFABS';
+}
+function helpDoc(){
+  const d=document.createElement('div'); d.className='help';
+  d.innerHTML=`
+  <h4>MOVEMENT</h4>
+  <p>WASD + mouse · SPACE jump · SHIFT sprint · V noclip · ENTER chat. Gravity fades with altitude - above ~1500 m your jetpack kicks in automatically (SPACE / C).</p>
+  <h4>MULTIPLAYER & FLIGHT SYNC</h4>
+  <p>HOST gives you a 5-letter code (auto-copied to your clipboard). Everyone sees each other as named avatars, chat with ENTER, and anchored builds sync - press B and your build appears frozen on every screen. <b>Flight sync:</b> when anyone pilots a ship, everyone sees it fly in real time, engines flaming; when they exit the cockpit, the ship becomes a physical body on every client and settles on the ground. Re-anchoring re-syncs everyone.</p>
+  <h4>PHYSICS GUN IS VISIBLE</h4>
+  <p>When another player grabs a part, you see their beam and the part floating at the end of it, rotating and snapping to the grid as they build. Their welds update the anchored build on your screen too.</p>
+  <h4>COCKPIT SHARING</h4>
+  <p>Ships belong to whoever anchored them. Press E at someone else's cockpit to ask - they get a Y/N prompt (Y hands you the controls, and they watch you fly their ship). Owners take over again any time by entering their own cockpit.</p>
+  <h4>BALANCED PHYSICS</h4>
+  <p>Every ship re-centers its true center of mass on every weld/remove. Symmetric engine layouts produce zero net torque - four thrusters under the corners boost straight up.</p>
+  <h4>POWER & WIRING</h4>
+  <p>Press N: <b>BATTERY -> COCKPIT</b> (amber wire), then <b>COCKPIT -> ENGINE / GYRO / STABILIZER</b> (green wire). Unwired thrusters show ENG x/y on the pilot HUD. M -> TOOLS -> AUTO-WIRE does a whole ship in one click.</p>
+  <h4>ANCHORING / PREFABS</h4>
+  <p>B freezes a ship mid-air as a build platform (and syncs it). M -> PREFABS saves the anchored build; click a card to spawn it again.</p>
+  <h4>FUEL & FLYING</h4>
+  <p>Tanks feed every engine automatically - refuel at the amber pump (E near it). In a cockpit: W/S thrust, SPACE/C lift, A/D steer, R/F pitch, Z/X roll, SHIFT fires everything.</p>
+  <h4>TESTING TOOLS</h4>
+  <p>SETTINGS -> TESTING: T weightless ships, G mouse gyro, ENGINE POWER up to x5.</p>`;
+  return d;
+}
+const SET_UI=[
+  {sec:'RENDERING'},
+  {k:'scale',label:'RENDER SCALE',type:'range',min:.5,max:1.5,step:.05,fmt:v=>Math.round(v*100)+'%'},
+  {k:'shadows',label:'SHADOW QUALITY',type:'seg',opts:[[0,'OFF'],[1024,'LOW'],[2048,'MED'],[4096,'HIGH']]},
+  {k:'clouds',label:'PLANET CLOUDS',type:'seg',opts:[[true,'ON'],[false,'OFF']]},
+  {sec:'CONTROLS'},
+  {k:'fov',label:'FIELD OF VIEW',type:'range',min:60,max:110,step:1,fmt:v=>v+' deg'},
+  {k:'sens',label:'MOUSE SENSITIVITY',type:'range',min:.3,max:2,step:.05,fmt:v=>v.toFixed(2)},
+  {k:'camsmooth',label:'CAMERA SMOOTHNESS',type:'range',min:0,max:100,step:5,fmt:v=>v+'%'},
+  {sec:'SYSTEM'},
+  {k:'sound',label:'SOUND',type:'seg',opts:[[true,'ON'],[false,'OFF']]},
+  {k:'fps',label:'FPS COUNTER',type:'seg',opts:[[true,'ON'],[false,'OFF']]},
+  {sec:'TESTING'},
+  {k:'weight',label:'SHIP WEIGHT',type:'seg',opts:[[true,'ON'],[false,'OFF']]},
+  {k:'mgyro',label:'MOUSE GYRO',type:'seg',opts:[[true,'ON'],[false,'OFF']]},
+  {k:'epower',label:'ENGINE POWER',type:'range',min:.5,max:5,step:.25,fmt:v=>'x'+(+v).toFixed(2)},
+  {note:'T / G toggle weight & mouse gyro in-game. Camera smoothness glides the first-person camera.'},
+];
+function buildSettings(main){
+  main.innerHTML='';
+  for(const r of SET_UI){
+    if(r.sec){ const h=document.createElement('div'); h.className='set-sec'; h.textContent=r.sec; main.appendChild(h); continue; }
+    if(r.note){ const n=document.createElement('div'); n.className='set-note'; n.textContent=r.note; main.appendChild(n); continue; }
+    const row=document.createElement('div'); row.className='set-row';
+    const lab=document.createElement('label'); lab.textContent=r.label; row.appendChild(lab);
+    if(r.type==='range'){
+      const inp=document.createElement('input'); inp.type='range'; inp.min=r.min; inp.max=r.max; inp.step=r.step; inp.value=SET[r.k];
+      const val=document.createElement('span'); val.className='val'; val.textContent=r.fmt(SET[r.k]);
+      inp.oninput=()=>{ SET[r.k]=parseFloat(inp.value); val.textContent=r.fmt(SET[r.k]); applySettings(); saveSet(); };
+      row.appendChild(inp); row.appendChild(val);
+    } else {
+      const seg=document.createElement('div'); seg.className='seg';
+      for(const [v,lbl] of r.opts){
+        const b=document.createElement('button'); b.textContent=lbl;
+        if(SET[r.k]===v) b.className='act';
+        b.onclick=()=>{ SET[r.k]=v; applySettings(); saveSet(); buildSettings(el('mMain')); Sfx.click(); };
+        seg.appendChild(b);
+      }
+      row.appendChild(seg);
+    }
+    main.appendChild(row);
+  }
+}
+function buildModalSettings(){
+  const body=el('mm-settings-body'); body.innerHTML='';
+  if(MP.active){
+    const row=document.createElement('div'); row.className='mm-row';
+    const lab=document.createElement('div'); lab.className='mm-label'; lab.textContent='Multiplayer Code'; row.appendChild(lab);
+    const cr=document.createElement('div'); cr.className='copy-row';
+    const inp=document.createElement('input'); inp.readOnly=true; inp.value=MP.code||'NOT HOSTING';
+    const btn=document.createElement('button'); btn.className='mm-btn'; btn.style.flex='0 0 70px'; btn.textContent='COPY';
+    btn.onclick=async()=>{ const ok=await copyText(MP.code); toast(ok?'CODE COPIED':'COPY BLOCKED BY BROWSER',ok?'good':'warn'); };
+    cr.appendChild(inp); cr.appendChild(btn); row.appendChild(cr);
+    body.appendChild(row);
+  }
+  for(const r of SET_UI){
+    if(r.sec){ const h=document.createElement('div'); h.className='mm-label';
+      h.style.color='#ffcc00'; h.style.margin='18px 0 0'; body.appendChild(h); continue; }
+    if(r.note){ const n=document.createElement('div'); n.className='mm-note'; n.textContent=r.note; body.appendChild(n); continue; }
+    const row=document.createElement('div'); row.className='mm-row';
+    const lab=document.createElement('div'); lab.className='mm-label'; lab.textContent=r.label; row.appendChild(lab);
+    if(r.type==='range'){
+      const inp=document.createElement('input'); inp.type='range'; inp.min=r.min; inp.max=r.max; inp.step=r.step; inp.value=SET[r.k];
+      const val=document.createElement('div'); val.className='mm-note'; val.style.textAlign='right'; val.textContent=r.fmt(SET[r.k]);
+      inp.oninput=()=>{ SET[r.k]=parseFloat(inp.value); val.textContent=r.fmt(SET[r.k]); applySettings(); saveSet(); };
+      row.appendChild(inp); row.appendChild(val);
+    } else {
+      const seg=document.createElement('div'); seg.className='mm-btns';
+      for(const [v,lbl] of r.opts){
+        const b=document.createElement('button'); b.className='mm-btn'+(SET[r.k]===v?' active':''); b.textContent=lbl;
+        b.onclick=()=>{ SET[r.k]=v; applySettings(); saveSet(); buildModalSettings(); Sfx.click(); };
+        seg.appendChild(b);
+      }
+      row.appendChild(seg);
+    }
+    body.appendChild(row);
+  }
+}
+let _lastWeight=SET.weight;
+function applySettings(){
+  camera.fov=SET.fov; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2)*SET.scale);
+  const on=SET.shadows>0;
+  renderer.shadowMap.enabled=on; sun.castShadow=on;
+  if(on&&sun.shadow.mapSize.x!==SET.shadows){
+    sun.shadow.mapSize.set(SET.shadows,SET.shadows);
+    if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; }
+  }
+  clouds.visible=SET.clouds;
+  if(masterG) masterG.gain.value=SET.sound?.4:0;
+  el('stFpsRow').style.display=SET.fps?'':'none';
+  if(_lastWeight!==SET.weight){ _lastWeight=SET.weight; for(const s of ships) s.body.wakeUp(); }
+  scene.traverse(o=>{ if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true); } });
+}
+document.querySelectorAll('#menu nav button').forEach(b=>{
+  b.onclick=()=>{ curTab=b.dataset.tab;
+    document.querySelectorAll('#menu nav button').forEach(x=>x.classList.toggle('act',x===b));
+    Sfx.click(); buildMenuTab(); };
+});
+function openMenu(){ state.menu=true; keys.clear(); el('menu').hidden=false; buildMenuTab(); if(isLocked()) document.exitPointerLock(); }
+function closeMenu(){ state.menu=false; el('menu').hidden=true; if(document.activeElement) document.activeElement.blur(); lockPointer(); }
+el('mClose').onclick=closeMenu;
+
+/* ═════════ 20. HUD ═════════ */
+const camEuler=new THREE.Euler(0,0,0,'YXZ');
+const camSm={yaw:1.05,pitch:0,pos:new THREE.Vector3(46,2.6,34),init:false};
+const tmpV=new THREE.Vector3();
+function updateHUD(){
+  const aim=(state.started&&!pilot.on&&isLocked()&&!state.menu)?aimPart():null;
+  const cross=el('cross'), lbl=el('aimLabel');
+  let st='', lt='';
+  if(wiring.on){ st='wire';
+    lt=aim?('<b>'+aim.part.def.name+'</b>'+(aim.part.def.fuelCap?' · '+Math.round(aim.part.fuel)+'/'+aim.part.def.fuelCap:'')):'WIRING'; }
+  else if(state.prec&&held.ship){ st='prec'; lt=held.part.def.name+(held.snap?'  ·  <b>GRID LOCK</b>':''); }
+  else if(held.ship){ st='hold'; lt=held.part.def.name; }
+  else if(aim){ st='aim';
+    lt='<b>'+aim.part.def.name+'</b>';
+    if(aim.part.def.fuelCap) lt+=' · '+Math.round(aim.part.fuel)+'/'+aim.part.def.fuelCap;
+    if(aim.part.ship.anchored) lt+='  ·  <b>B - RELEASE</b>';
+    else if(aim.dist<15&&!aim.part.ship.remote) lt+='  ·  B - ANCHOR';
+    if(aim.part.def.isCockpit&&aim.dist<4.5) lt+=(aim.part.ship.remote?'  ·  <b>E - ASK OWNER</b>':'  ·  <b>E - PILOT</b>');
+  }
+  if(!pilot.on&&!wiring.on&&!held.ship&&!aim&&!player.noclip&&jetOn) lt='<b>JETPACK</b> SPACE / C';
+  cross.dataset.st=st; lbl.innerHTML=lt;
+  if(aim&&!held.ship){ aimBox.box.setFromObject(aim.part.mesh); aimBox.box.expandByScalar(.03); aimBox.visible=true; }
+  else aimBox.visible=false;
+  if(state.menu) setHints('def');
+  else if(pilot.on) setHints(SET.mgyro?'pilot_mg':'pilot');
+  else if(wiring.on) setHints('wire');
+  else if(state.prec) setHints('prec');
+  else if(held.ship) setHints('hold');
+  else if(aim) setHints('aim');
+  else setHints('def');
+  const tags=[];
+  if(!SET.weight) tags.push('WEIGHT OFF');
+  if(SET.mgyro) tags.push('MOUSE GYRO');
+  if(SET.epower!==1) tags.push('THRUST x'+(+SET.epower).toFixed(2));
+  el('stTestRow').style.display=tags.length?'':'none';
+  el('stTest').textContent=tags.join(' · ');
+  el('stAlt').textContent=Math.round(camera.position.y)+' m';
+  const spd=pilot.on?pilot.ship.body.velocity.length():player.body.velocity.length();
+  el('stSpd').textContent=spd.toFixed(1);
+  if(pilot.on){
+    const s=pilot.ship, f=s.fuelTotal(), cap=s.fuelCap(), g=pilot.groups;
+    el('pVel').textContent=s.body.velocity.length().toFixed(1);
+    el('pAlt').textContent=Math.round(s.body.position.y);
+    el('pFuelBar').style.width=(cap?f/cap*100:0)+'%';
+    el('pFuelTxt').textContent='FUEL '+Math.round(f)+'/'+cap;
+    let en=0,enw=0; for(const p of s.parts) if(p.def.thrust){ en++; if(p.powered) enw++; }
+    const pw=el('pPwr');
+    if(!s.poweredCockpit){ pw.textContent='NO PWR'; pw.className='bad'; }
+    else if(enw<en){ pw.textContent='ENG '+enw+'/'+en; pw.className='bad'; }
+    else { pw.textContent='PWR OK'; pw.className='ok'; }
+    let stb=0; for(const p of s.parts) if(p.def.stab) stb++;
+    el('pGrp').textContent=g?('UP '+g.up.length+' · FWD '+g.fwd.length+' · GYR '+g.gyro.length
+      +(stb?' · STB '+stb:'')+' · '+Math.round(s.body.mass)+' kg'):'-';
+  }
+}
+
+/* ═════════ 21. MAIN LOOP ═════════ */
+let phyAcc=0, lastT=performance.now(), fpsE=60, statT=0, introUp=true, introA=0;
+function physics(dt){
+  phyAcc=Math.min(phyAcc+dt,.12);
+  while(phyAcc>=FIXED){ applyForces(FIXED); world.step(FIXED); phyAcc-=FIXED; }
+}
+function syncVisuals(dt,t){
+  shipsBodyMap.clear();
+  for(const s of ships){
+    shipsBodyMap.set(s.body,s);
+    syncGroup(s);
+    for(const p of s.parts){
+      const u=p.mesh.userData;
+      if(u.flame){ const fire=p._thr>.02;
+        u.flame.visible=fire;
+        if(fire) u.flame.scale.set(1,p._thr*(.8+.3*Math.sin(t*45+p.id)),1);
+      }
+      if(u.ring&&p.powered&&pilot.on&&pilot.ship===s) u.ring.rotation.y+=dt*9;
+    }
+  }
+  updateWires();
+}
+function updateCamera(dt){
+  if(introUp){
+    introA+=dt*.07;
+    camera.position.set(54+Math.cos(introA)*30, 9+Math.sin(introA*.6)*2, 38+Math.sin(introA)*30);
+    camera.lookAt(54,2,38);
+    return;
+  }
+  if(pilot.on){
+    const s=pilot.ship, ck=pilot.cockpit;
+    const pos=s.gridToWorld(ck.localPos);
+    camera.position.set(pos.x,pos.y+.42,pos.z);
+    const base=new THREE.Quaternion(s.body.quaternion.x,s.body.quaternion.y,s.body.quaternion.z,s.body.quaternion.w)
+      .multiply(new THREE.Quaternion(ck.localQuat.x,ck.localQuat.y,ck.localQuat.z,ck.localQuat.w));
+    base.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI));
+    if(SET.mgyro){
+      camera.quaternion.copy(base);
+    } else {
+      camera.quaternion.copy(base.clone()
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),pilot.yaw))
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),pilot.pitch)));
+    }
+    pilot.fovBoost=lerp(pilot.fovBoost,Math.min(13,s.body.velocity.length()*.16),.06);
+    camSm.init=false;
+  } else {
+    if(player.noclip){
+      const b=player.body;
+      const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+      const right=new THREE.Vector3().crossVectors(fwd,UPV).normalize();
+      const sp=(keys.has('ShiftLeft')?56:20)*dt;
+      const mv=new THREE.Vector3();
+      if(keys.has('KeyW'))mv.add(fwd); if(keys.has('KeyS'))mv.sub(fwd);
+      if(keys.has('KeyD'))mv.add(right); if(keys.has('KeyA'))mv.sub(right);
+      if(keys.has('Space'))mv.y+=1; if(keys.has('KeyC'))mv.y-=1;
+      if(mv.lengthSq()>0) mv.normalize().multiplyScalar(sp);
+      b.position.x+=mv.x; b.position.y+=mv.y; b.position.z+=mv.z;
+      b.velocity.set(0,0,0);
+      if(b.position.y<.6) b.position.y=.6;
+      camEuler.set(player.pitch,player.yaw,0);
+      camera.quaternion.setFromEuler(camEuler);
+      camera.position.set(b.position.x,b.position.y+1.15,b.position.z);
+      camSm.init=false;
+    } else if(SET.camsmooth>0){
+      const rate=lerp(30,2.5,SET.camsmooth/100);
+      const k=1-Math.exp(-dt*rate);
+      const b=player.body;
+      tmpV.set(b.position.x,b.position.y+1.15,b.position.z);
+      if(!camSm.init){ camSm.yaw=player.yaw; camSm.pitch=player.pitch; camSm.pos.copy(tmpV); camSm.init=true; }
+      let dy=player.yaw-camSm.yaw;
+      while(dy>Math.PI)dy-=TAU; while(dy<-Math.PI)dy+=TAU;
+      camSm.yaw+=dy*k; camSm.pitch=lerp(camSm.pitch,player.pitch,k);
+      camSm.pos.lerp(tmpV,k);
+      camEuler.set(camSm.pitch,camSm.yaw,0);
+      camera.quaternion.setFromEuler(camEuler);
+      camera.position.copy(camSm.pos);
+    } else {
+      camEuler.set(player.pitch,player.yaw,0);
+      camera.quaternion.setFromEuler(camEuler);
+      camera.position.set(player.body.position.x,player.body.position.y+1.15,player.body.position.z);
+    }
+    pilot.fovBoost=lerp(pilot.fovBoost,0,.08);
+  }
+  const f=SET.fov+pilot.fovBoost;
+  if(Math.abs(camera.fov-f)>.05){ camera.fov=f; camera.updateProjectionMatrix(); }
+  if(held.ship&&!state.prec){
+    const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+    held.hp.set(camera.position.x+fwd.x*held.dist,
+      Math.max(.15,camera.position.y+fwd.y*held.dist),
+      camera.position.z+fwd.z*held.dist);
+  }
+  if(held.ship&&state.prec) findSnap();
+  if(held.ship){
+    beam.visible=true;
+    const b=held.ship.body;
+    const tgt=held.snapPose||b.position;
+    const pos=beamGeo.attributes.position;
+    for(let i=0;i<10;i++){ const tt=i/9;
+      pos.setXYZ(i, lerp(camera.position.x,tgt.x,tt),
+        lerp(camera.position.y,tgt.y,tt)-Math.sin(Math.PI*tt)*.25,
+        lerp(camera.position.z,tgt.z,tt)); }
+    pos.needsUpdate=true;
+  } else beam.visible=false;
+}
+function updateEnv(dt){
+  const y=camera.position.y;
+  const t=smooth(SPACE_A,SPACE_B,y);
+  skyUni.uSpace.value=t;
+  starsMat.opacity=smooth(750,2300,y);
+  groundMat.opacity=1-smooth(380,1300,y);
+  const po=smooth(320,1400,y);
+  planetMat.opacity=po; planet.visible=po>.02;
+  atmoUni.uOp.value=smooth(500,900,y); atmo.visible=true;
+  scene.fog.color.copy(fogLow).lerp(fogSpace,t);
+  scene.fog.near=lerp(200,9000,t); scene.fog.far=lerp(3000,90000,t);
+  skyMesh.position.copy(camera.position);
+  sunSprite.position.copy(camera.position).addScaledVector(sunDir,28000);
+  clouds.rotation.y+=dt*.004;
+  if(radarMesh) radarMesh.rotation.y+=dt*1.2;
+  const p=pilot.on?pilot.ship.body.position:player.body.position;
+  sun.position.set(p.x+sunDir.x*180,p.y+sunDir.y*180,p.z+sunDir.z*180);
+  sun.target.position.set(p.x,p.y,p.z);
+}
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min((now-lastT)/1000,.1); lastT=now;
+  if(dt>0) fpsE=lerp(fpsE,1/dt,.05);
+  physics(dt);
+  if(pilot.on&&pilot.groups){
+    for(const p of pilot.ship.parts) p._thr=0;
+    for(const grp in pilot.thr){ const t=pilot.thr[grp]||0;
+      if(t>.02&&pilot.groups[grp]) for(const p of pilot.groups[grp]) p._thr=Math.max(p._thr||0,t); }
+  }
+  syncVisuals(dt,now/1000);
+  updateCamera(dt);
+  updateEnv(dt);
+  mpTick(now);
+  mpVisuals(dt);
+  if(state.started) updateHUD();
+  renderer.render(scene,camera);
+  statT+=dt; if(statT>.5){ statT=0; el('stFps').textContent=Math.round(fpsE); refreshNetHud(); }
+}
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+renderer.setSize(innerWidth,innerHeight);
+
+/* ═════════ 22. MULTIPLAYER (PeerJS) ═════════ */
+const MP={peer:null, isHost:false, code:null, conns:new Map(), remotes:new Map(),
+  name:'PILOT-'+(100+Math.floor(Math.random()*900)),
+  color:['#ffb454','#7ddc95','#ff5d5d','#20d0e8','#d8b06a','#c76f92'][Math.floor(Math.random()*6)],
+  lastSend:0, active:false};
+const remoteShips=new Map();
+const remoteHolds=new Map();
+const askState={open:false, from:null, shipKey:null, timer:0};
+const askBox=el('askbox');
+const RELAY=['p','c','hi','bye','anchor','release','shipdel','ask','ans','fly','unfly','holdstart','holdmove','holdend'];
+function randCode(){
+  const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<5;i++) s+=A[Math.floor(Math.random()*A.length)];
+  return s;
+}
+function makeAvatar(name,col){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.26,.85,6,12),
+    new THREE.MeshStandardMaterial({color:col,roughness:.8}));
+  body.position.y=.75; body.castShadow=true; g.add(body);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(.3,.12,.06),
+    new THREE.MeshStandardMaterial({color:0x10131a,roughness:.3,metalness:.4}));
+  visor.position.set(0,1.28,.16); g.add(visor);
+  const cnv=document.createElement('canvas'); cnv.width=256; cnv.height=64;
+  const ctx=cnv.getContext('2d');
+  ctx.fillStyle='rgba(9,12,16,.65)'; ctx.fillRect(8,14,240,36);
+  ctx.strokeStyle='rgba(255,180,84,.8)'; ctx.lineWidth=2; ctx.strokeRect(8,14,240,36);
+  ctx.fillStyle='#ffb454'; ctx.font='bold 22px monospace'; ctx.textAlign='center';
+  ctx.fillText(name,128,40);
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cnv),transparent:true,depthWrite:false}));
+  spr.scale.set(1.5,.38,1); spr.position.y=1.95; g.add(spr);
+  scene.add(g);
+  return g;
+}
+function upRemote(id,name,col){
+  if(!id||id===MP.peer?.id) return null;
+  let r=MP.remotes.get(id);
+  if(!r){
+    r={name,col,grp:makeAvatar(name,col),tPos:new THREE.Vector3(),tyaw:0,yaw:0,last:performance.now()};
+    MP.remotes.set(id,r);
+  }
+  return r;
+}
+function removeRemote(id){
+  const r=MP.remotes.get(id);
+  if(r){ scene.remove(r.grp); MP.remotes.delete(id); }
+  refreshNetHud();
+}
+function sendNet(m){
+  if(!MP.peer) return;
+  if(MP.isHost){
+    for(const [pid,c] of MP.conns) c.send(Object.assign({},m,{o:MP.peer.id}));
+  } else {
+    for(const [pid,c] of MP.conns) c.send(m);
+  }
+}
+/* ── ship serialization ── */
+function shipToNet(ship){
+  const arr=[...ship.parts], parts=[];
+  for(const p of arr)
+    parts.push({k:p.def.key, a:p.anchor, q:[p.localQuat.x,p.localQuat.y,p.localQuat.z,p.localQuat.w], f:p.fuel||0});
+  const wl=[];
+  for(const w of wires) if(w.a.ship===ship&&w.b.ship===ship)
+    wl.push([arr.indexOf(w.a), arr.indexOf(w.b)]);
+  return {parts, wires:wl,
+    ai:ship.anchorPart?Math.max(0,arr.indexOf(ship.anchorPart)):0,
+    pos:[ship.body.position.x,ship.body.position.y,ship.body.position.z],
+    q0:[ship.body.quaternion.x,ship.body.quaternion.y,ship.body.quaternion.z,ship.body.quaternion.w]};
+}
+function findShipByKey(k){
+  if(!k) return null;
+  for(const s of ships) if(s.netKey===k) return s;
+  return null;
+}
+function netAnchorShip(ship){
+  if(!MP.active||ship.remote||!ship.parts.size) return;
+  if(!ship.netKey) ship.netKey='shp-'+(MP.peer?MP.peer.id:'local')+'-'+ship.id;
+  sendNet({t:'anchor',k:ship.netKey,name:MP.name,d:shipToNet(ship)});
+}
+function netReleaseShip(ship){
+  if(!MP.active||ship.remote||!ship.netKey) return;
+  sendNet({t:'release',k:ship.netKey,
+    pos:[ship.body.position.x,ship.body.position.y,ship.body.position.z],
+    q:[ship.body.quaternion.x,ship.body.quaternion.y,ship.body.quaternion.z,ship.body.quaternion.w]});
+}
+function netRemoveShip(ship){
+  if(!MP.active||ship.remote||!ship.netKey) return;
+  sendNet({t:'shipdel',k:ship.netKey});
+}
+function netFlyStart(ship){
+  if(!MP.active||!ship) return;
+  if(!ship.netKey) ship.netKey='shp-'+(MP.peer?MP.peer.id:'local')+'-'+ship.id;
+  sendNet({t:'fly',k:ship.netKey,name:MP.name,d:shipToNet(ship)});
+}
+function netFlyEnd(ship){
+  if(!MP.active||!ship||!ship.netKey) return;
+  const b=ship.body;
+  sendNet({t:'unfly',k:ship.netKey,
+    pos:[b.position.x,b.position.y,b.position.z],
+    q:[b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w],
+    vel:[b.velocity.x,b.velocity.y,b.velocity.z],
+    ang:[b.angularVelocity.x,b.angularVelocity.y,b.angularVelocity.z]});
+}
+function netAskCockpit(ship){
+  if(!MP.active){ toast('SINGLE PLAYER - ONLY YOU CAN FLY THIS','warn'); return; }
+  sendNet({t:'ask',k:ship.netKey,name:MP.name});
+}
+function netHoldStart(){
+  if(!MP.active||!held.part) return;
+  sendNet({t:'holdstart',name:MP.name,part:held.part.def.key,
+    pos:[held.hp.x,held.hp.y,held.hp.z],
+    q:[held.quat.x,held.quat.y,held.quat.z,held.quat.w]});
+}
+function netHoldEnd(){
+  if(!MP.active) return;
+  sendNet({t:'holdend'});
+}
+/* ── ghost ships ── */
+function anchorShipFnLocal(ship, part){
+  ship.anchored=true; ship.anchorPart=part;
+  ship.body.type=CANNON.Body.STATIC;
+  ship.body.velocity.set(0,0,0); ship.body.angularVelocity.set(0,0,0);
+  ship.refresh();
+  tintAnchor(part,true);
+}
+function makeRemoteShip(k,ownerId,ownerName,d,flying){
+  if(remoteShips.has(k)) removeRemoteShip(k);
+  const ship=new Ship();
+  ship.remote=true; ship.netKey=k; ship.owner=ownerId; ship.ownerName=ownerName||'ANOTHER PILOT';
+  ship.body.position.set(d.pos[0],d.pos[1],d.pos[2]);
+  if(d.q0) ship.body.quaternion.set(d.q0[0],d.q0[1],d.q0[2],d.q0[3]);
+  const arr=[];
+  for(const pd of d.parts){ const def=DEFS[pd.k]; if(!def||!pd.a) continue;
+    arr.push(ship.addPart(def,pd.a,new CQ(pd.q[0],pd.q[1],pd.q[2],pd.q[3]),{fuel:pd.f})); }
+  if(!arr.length){ ship.destroy(); return null; }
+  for(const ij of (d.wires||[])) if(arr[ij[0]]&&arr[ij[1]]) addWire(arr[ij[0]],arr[ij[1]],true);
+  refreshPower();
+  if(flying){
+    syncGroup(ship);
+  } else {
+    anchorShipFnLocal(ship, arr[Math.min(d.ai||0,arr.length-1)]);
+    syncGroup(ship); ship.group.updateMatrixWorld(true);
+    const bb=new THREE.Box3().setFromObject(ship.group);
+    if(bb.min.y<.3){ ship.body.position.y+=(.3-bb.min.y); syncGroup(ship); }
+  }
+  remoteShips.set(k,ship);
+  return ship;
+}
+function removeRemoteShip(k){
+  const s=remoteShips.get(k);
+  if(s){ s.netKey=null; s.destroy(); }
+  remoteShips.delete(k);
+}
+function releaseRemoteShip(k,d){
+  const s=remoteShips.get(k);
+  if(!s) return;
+  s.anchored=false;
+  if(s.anchorPart) tintAnchor(s.anchorPart,false);
+  s.anchorPart=null;
+  s.body.type=CANNON.Body.DYNAMIC;
+  s.refresh();
+  if(d&&d.pos){ s.body.position.set(d.pos[0],d.pos[1],d.pos[2]);
+    if(d.q) s.body.quaternion.set(d.q[0],d.q[1],d.q[2],d.q[3]); }
+}
+/* ── owner-authoritative flight follow ── */
+function setFollow(ship,origin,d){
+  if(!ship.remoteFlying){
+    ship.savedMask=ship.body.collisionFilterMask;
+    if(ship.anchored){
+      ship.anchored=false;
+      if(ship.anchorPart) tintAnchor(ship.anchorPart,false);
+      ship.anchorPart=null;
+      if(buildShip===ship) buildShip=null;
+    }
+    ship.body.type=CANNON.Body.KINEMATIC;
+    ship.body.mass=0; ship.body.updateMassProperties();
+    ship.body.collisionFilterMask=0;
+    ship.body.velocity.set(0,0,0);
+    ship.body.angularVelocity.set(0,0,0);
+    ship.remoteFlying=origin;
+    ship.body.wakeUp();
+  }
+  ship.flyTarget.pos.set(d.pos[0],d.pos[1],d.pos[2]);
+  ship.flyTarget.q.set(d.q[0],d.q[1],d.q[2],d.q[3]);
+  ship.flyTarget.thr=d.thr||0;
+  ship.flyTarget.last=performance.now();
+}
+function endFollow(ship,d){
+  if(!ship.remoteFlying) return;
+  ship.remoteFlying=null;
+  ship.body.type=CANNON.Body.DYNAMIC;
+  ship.body.collisionFilterMask=ship.savedMask||(GRP.GROUND|GRP.PART|GRP.PLAYER|GRP.STATIC);
+  if(d&&d.pos){
+    ship.body.position.set(d.pos[0],d.pos[1],d.pos[2]);
+    if(d.q) ship.body.quaternion.set(d.q[0],d.q[1],d.q[2],d.q[3]);
+    if(d.vel) ship.body.velocity.set(d.vel[0],d.vel[1],d.vel[2]);
+    else ship.body.velocity.set(0,0,0);
+    if(d.ang) ship.body.angularVelocity.set(d.ang[0],d.ang[1],d.ang[2]);
+    else ship.body.angularVelocity.set(0,0,0);
+  } else {
+    ship.body.velocity.set(0,0,0);
+    ship.body.angularVelocity.set(0,0,0);
+  }
+  for(const p of ship.parts) if(p.def.thrust) p._thr=0;
+  ship.body.wakeUp();
+  ship.refresh();
+  syncGroup(ship);
+}
+/* ── visible physgun holds ── */
+function makeHold(o,partKey){
+  const def=DEFS[partKey]||DEFS.block;
+  const mesh=buildPartMesh(def);
+  scene.add(mesh);
+  const geo=new THREE.BufferGeometry().setFromPoints(Array.from({length:10},()=>new THREE.Vector3()));
+  const r=MP.remotes.get(o);
+  const col=(r&&r.col)?new THREE.Color(r.col):new THREE.Color(0xffb454);
+  const bm=new THREE.Line(geo,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.5}));
+  bm.frustumCulled=false; bm.visible=false; scene.add(bm);
+  const h={mesh,beam:bm,tPos:new THREE.Vector3(),tQ:new THREE.Quaternion(),last:performance.now(),init:false};
+  remoteHolds.set(o,h);
+  return h;
+}
+function removeHold(o){
+  const h=remoteHolds.get(o);
+  if(!h) return;
+  scene.remove(h.mesh); scene.remove(h.beam);
+  h.mesh.traverse(m=>{ if(m.geometry) m.geometry.dispose(); });
+  h.beam.geometry.dispose(); h.beam.material.dispose();
+  remoteHolds.delete(o);
+}
+/* ── cockpit permission asking ── */
+function showAsk(from,name,shipKey){
+  askState.open=true; askState.from=from; askState.shipKey=shipKey;
+  el('askText').innerHTML='<b>'+esc(name)+'</b> WANTS YOUR COCKPIT';
+  askBox.classList.add('open');
+  askState.timer=setTimeout(()=>askAnswer(false),12000);
+  Sfx.good();
+}
+function askAnswer(yes){
+  if(!askState.open) return;
+  clearTimeout(askState.timer);
+  askState.open=false; askBox.classList.remove('open');
+  let mine=null;
+  for(const s of ships) if(s.netKey===askState.shipKey&&!s.remote) mine=s;
+  let dd=null;
+  if(yes&&mine){
+    if(pilot.on&&pilot.ship===mine) exitPilot(true);
+    if(mine.anchored){
+      mine.anchored=false;
+      if(mine.anchorPart) tintAnchor(mine.anchorPart,false);
+      mine.anchorPart=null;
+      if(buildShip===mine) buildShip=null;
+      mine.body.type=CANNON.Body.DYNAMIC;
+      mine.refresh();
+    }
+    const b=mine.body;
+    dd={pos:[b.position.x,b.position.y,b.position.z],
+        q:[b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w],
+        vel:[b.velocity.x,b.velocity.y,b.velocity.z],
+        ang:[b.angularVelocity.x,b.angularVelocity.y,b.angularVelocity.z]};
+    setFollow(mine,askState.from,{pos:dd.pos,q:dd.q,thr:0});
+  }
+  sendNet({t:'ans',k:askState.shipKey,to:askState.from,yes:!!yes,name:MP.name,d:dd});
+  toast(yes?'PERMISSION GRANTED':'REFUSED',yes?'good':'warn');
+}
+/* ── message handling ── */
+function onNet(conn,d){
+  if(!d||typeof d!=='object') return;
+  const origin=d.o||(conn?conn.peer:null);
+  if(MP.isHost&&conn&&RELAY.includes(d.t)){
+    for(const [pid,cc] of MP.conns) if(pid!==conn.peer) cc.send(Object.assign({},d,{o:conn.peer}));
+  }
+  if(origin===MP.peer?.id) return;
+  switch(d.t){
+    case 'hi':
+      upRemote(origin,d.name,d.col);
+      toast(d.name+' JOINED','good'); Sfx.good(); refreshNetHud();
+      for(const s of ships) if(!s.remote&&s.anchored&&s.netKey) netAnchorShip(s);
+      if(pilot.on&&pilot.ship) netFlyStart(pilot.ship);
+      break;
+    case 'p': {
+      const r=upRemote(origin,d.name,d.col);
+      if(r){ r.tPos.set(d.x,d.y,d.z); r.tyaw=d.ay||0; r.last=performance.now(); }
+      break; }
+    case 'c': addChat(d.name,d.msg); break;
+    case 'anchor': {
+      const isNew=!remoteShips.has(d.k);
+      makeRemoteShip(d.k,origin,d.name,d.d);
+      if(isNew) toast((d.name||'SOMEONE')+' ANCHORED A BUILD','good');
+      break; }
+    case 'release': releaseRemoteShip(d.k,d); break;
+    case 'shipdel': removeRemoteShip(d.k); break;
+    case 'fly': {
+      if(pilot.on&&pilot.ship&&pilot.ship.netKey===d.k) break;
+      let s=findShipByKey(d.k);
+      if(!s&&d.d) s=makeRemoteShip(d.k,origin,d.name,d.d,true);
+      if(s) setFollow(s,origin,d);
+      break; }
+    case 'unfly': {
+      const s=findShipByKey(d.k);
+      if(s&&s!==pilot.ship) endFollow(s,d);
+      break; }
+    case 'holdstart':
+    case 'holdmove': {
+      let h=remoteHolds.get(origin);
+      if(!h) h=makeHold(origin,d.part);
+      if(h){ h.tPos.set(d.pos[0],d.pos[1],d.pos[2]); h.tQ.set(d.q[0],d.q[1],d.q[2],d.q[3]);
+        h.last=performance.now();
+        if(!h.init){ h.mesh.position.copy(h.tPos); h.mesh.quaternion.copy(h.tQ); h.init=true; } }
+      break; }
+    case 'holdend': removeHold(origin); break;
+    case 'ask': {
+      let mine=null;
+      for(const s of ships) if(s.netKey===d.k&&!s.remote) mine=s;
+      if(mine) showAsk(origin,d.name,d.k);
+      break; }
+    case 'ans': {
+      if(d.to&&d.to!==(MP.peer?MP.peer.id:null)) return;
+      if(d.yes&&d.d){
+        const s=findShipByKey(d.k);
+        if(s){
+          if(s.anchored){
+            s.anchored=false;
+            if(s.anchorPart) tintAnchor(s.anchorPart,false);
+            s.anchorPart=null;
+            if(buildShip===s) buildShip=null;
+          }
+          s.remoteFlying=null;
+          s.body.type=CANNON.Body.DYNAMIC;
+          s.body.collisionFilterMask=s.savedMask||(GRP.GROUND|GRP.PART|GRP.PLAYER|GRP.STATIC);
+          s.body.position.set(d.d.pos[0],d.d.pos[1],d.d.pos[2]);
+          if(d.d.q) s.body.quaternion.set(d.d.q[0],d.d.q[1],d.d.q[2],d.d.q[3]);
+          if(d.d.vel) s.body.velocity.set(d.d.vel[0],d.d.vel[1],d.d.vel[2]);
+          if(d.d.ang) s.body.angularVelocity.set(d.d.ang[0],d.d.ang[1],d.d.ang[2]);
+          s.refresh();
+          const ck=[...s.parts].find(p=>p.def.isCockpit);
+          if(ck){ enterPilot(ck); toast((d.name||'THE OWNER')+' GRANTED THE COCKPIT','good'); }
+        }
+      } else {
+        toast((d.name||'THE OWNER')+' REFUSED','warn');
+      }
+      break; }
+    case 'bye': removeRemote(origin); break;
+  }
+}
+function setupConn(c,isGuest){
+  c.on('open',()=>{
+    MP.conns.set(c.peer,c); MP.active=true;
+    c.send({t:'hi',name:MP.name,col:MP.color});
+    if(isGuest){
+      beginGame();
+      el('mm-join').classList.remove('open');
+      toast('CONNECTED - CODE '+MP.code,'good');
+    }
+    refreshNetHud();
+  });
+  c.on('data',d=>onNet(c,d));
+  c.on('close',()=>{
+    MP.conns.delete(c.peer);
+    const r=MP.remotes.get(c.peer);
+    if(r) toast(r.name+' LEFT');
+    removeRemote(c.peer);
+    removeHold(c.peer);
+    for(const s of [...ships]) if(s.remoteFlying===c.peer) endFollow(s,null);
+    for(const [k,s] of [...remoteShips]) if(s.owner===c.peer) removeRemoteShip(k);
+  });
+  c.on('error',()=>{});
+}
+async function mpHost(){
+  if(MP.peer) return;
+  MP.code=randCode();
+  MP.isHost=true;
+  try{ MP.peer=new Peer('pcvfk-'+MP.code,{debug:0}); }
+  catch(e){ toast('PEERJS FAILED TO LOAD','warn'); MP.isHost=false; return; }
+  MP.peer.on('open',async()=>{
+    MP.active=true;
+    beginGame();
+    const ok=await copyText(MP.code);
+    toast('HOSTING - CODE '+MP.code+(ok?' · COPIED TO CLIPBOARD':''),'good');
+    refreshNetHud();
+  });
+  MP.peer.on('connection',c=>setupConn(c,false));
+  MP.peer.on('error',e=>{ toast('NETWORK ERROR - '+e.type,'warn'); });
+}
+function mpJoin(code){
+  if(MP.peer) return;
+  try{ MP.peer=new Peer({debug:0}); }
+  catch(e){ setJoinStatus('PEERJS FAILED TO LOAD'); return; }
+  el('joinStatus').textContent='CONNECTING...';
+  MP.peer.on('open',()=>{
+    const c=MP.peer.connect('pcvfk-'+code,{reliable:true});
+    setupConn(c,true);
+    setTimeout(()=>{ if(!c.open&&!state.started) setJoinStatus('NO HOST FOUND WITH THAT CODE'); },6000);
+  });
+  MP.peer.on('error',e=>{
+    setJoinStatus(e.type==='peer-unavailable'?'NO HOST FOUND WITH THAT CODE':'ERROR - '+e.type);
+  });
+}
+function setJoinStatus(s){ el('joinStatus').textContent=s; }
+function mpTick(now){
+  if(!MP.peer||!MP.active||!state.started) return;
+  if(now-MP.lastSend<80) return;
+  MP.lastSend=now;
+  let x,y,z,ay;
+  if(pilot.on){
+    const s=pilot.ship;
+    const p=s.gridToWorld(pilot.cockpit.localPos);
+    x=p.x; y=p.y+.4; z=p.z;
+    const f=s.body.quaternion.vmult(new CV(0,0,1));
+    ay=Math.atan2(f.x,f.z);
+  } else {
+    const b=player.body;
+    x=b.position.x; y=b.position.y; z=b.position.z;
+    ay=player.yaw+Math.PI;
+  }
+  sendNet({t:'p',name:MP.name,col:MP.color,x,y,z,ay});
+  if(pilot.on&&pilot.ship&&pilot.ship.netKey){
+    const s=pilot.ship;
+    sendNet({t:'fly',k:s.netKey,name:MP.name,
+      pos:[s.body.position.x,s.body.position.y,s.body.position.z],
+      q:[s.body.quaternion.x,s.body.quaternion.y,s.body.quaternion.z,s.body.quaternion.w],
+      thr:pilot.thrLevel||0});
+  }
+  if(held.ship&&held.part){
+    const tp=held.snap?held.snapPose:held.hp;
+    const tq=held.snap?held.snapQuat:held.quat;
+    sendNet({t:'holdmove',name:MP.name,part:held.part.def.key,
+      pos:[tp.x,tp.y,tp.z],q:[tq.x,tq.y,tq.z,tq.w]});
+  }
+}
+function mpVisuals(dt){
+  const now=performance.now();
+  /* avatars */
+  for(const [id,r] of MP.remotes){
+    if(now-r.last>7000){ removeRemote(id); continue; }
+    const k=1-Math.exp(-dt*10);
+    r.grp.position.lerp(r.tPos,k);
+    let dy=r.tyaw-r.yaw;
+    while(dy>Math.PI)dy-=TAU; while(dy<-Math.PI)dy+=TAU;
+    r.yaw+=dy*k;
+    r.grp.rotation.y=r.yaw;
+  }
+  /* flying ships: kinematic follow of the owner's stream */
+  for(const s of [...ships]){
+    if(!s.remoteFlying) continue;
+    const ft=s.flyTarget;
+    if(now-ft.last>1500){ endFollow(s,null); continue; }
+    const k=1-Math.exp(-dt*10);
+    s.body.position.x=lerp(s.body.position.x,ft.pos.x,k);
+    s.body.position.y=lerp(s.body.position.y,ft.pos.y,k);
+    s.body.position.z=lerp(s.body.position.z,ft.pos.z,k);
+    _q3.set(s.body.quaternion.x,s.body.quaternion.y,s.body.quaternion.z,s.body.quaternion.w);
+    _tq3.set(ft.q.x,ft.q.y,ft.q.z,ft.q.w);
+    _q3.slerp(_tq3,k);
+    s.body.quaternion.set(_q3.x,_q3.y,_q3.z,_q3.w);
+    s.body.velocity.set(0,0,0);
+    s.body.angularVelocity.set(0,0,0);
+    syncGroup(s);
+    for(const p of s.parts) if(p.def.thrust) p._thr=ft.thr;
+  }
+  /* visible physgun holds */
+  for(const [o,h] of [...remoteHolds]){
+    if(now-h.last>3000){ removeHold(o); continue; }
+    const k=1-Math.exp(-dt*12);
+    h.mesh.position.lerp(h.tPos,k);
+    h.mesh.quaternion.slerp(h.tQ,k);
+    const r=MP.remotes.get(o);
+    if(r){
+      h.beam.visible=true;
+      const ax=r.grp.position.x, ay=r.grp.position.y+1.35, az=r.grp.position.z;
+      const pos=h.beam.geometry.attributes.position;
+      for(let i=0;i<10;i++){ const t=i/9;
+        pos.setXYZ(i, lerp(ax,h.mesh.position.x,t),
+          lerp(ay,h.mesh.position.y,t)-Math.sin(Math.PI*t)*.2,
+          lerp(az,h.mesh.position.z,t)); }
+      pos.needsUpdate=true;
+    } else h.beam.visible=false;
+  }
+}
+function refreshNetHud(){
+  const n=MP.remotes.size;
+  el('stNet').textContent = !MP.active?'OFFLINE'
+    : MP.isHost ? ('HOST '+MP.code+(n?' · '+n+' ON':''))
+    : ('JOINED '+MP.code);
+}
+addEventListener('beforeunload',()=>{ if(MP.peer){ try{ sendNet({t:'bye',name:MP.name}); MP.peer.destroy(); }catch(e){} } });
+
+/* ═════════ 23. BOOT / MAIN MENU ═════════ */
+function beginGame(){
+  el('main-menu').hidden=true;
+  el('hud').classList.add('on');
+  state.started=true;
+  introUp=false;
+  audioInit(); if(AC&&AC.state==='suspended') AC.resume();
+  lockPointer();
+  toast('A STARTER DRONE WAITS ON THE APRON - PRESS E AT ITS COCKPIT','good');
+}
+el('mmSingle').onclick=()=>beginGame();
+el('mmHost').onclick=()=>mpHost();
+el('mmJoin').onclick=()=>{ setJoinStatus(''); el('mm-join').classList.add('open'); setTimeout(()=>el('joinCode').focus(),0); };
+el('mmSettings').onclick=()=>{ buildModalSettings(); el('mm-settings').classList.add('open'); };
+el('setClose').onclick=()=>el('mm-settings').classList.remove('open');
+el('joinCancel').onclick=()=>el('mm-join').classList.remove('open');
+el('joinGo').onclick=()=>{
+  const c=el('joinCode').value.trim().toUpperCase();
+  if(c.length<4){ setJoinStatus('CODE IS 5 LETTERS'); return; }
+  MP.code=c;
+  mpJoin(c);
+};
+el('joinCode').addEventListener('keydown',e=>{
+  e.stopPropagation();
+  if(e.key==='Enter') el('joinGo').click();
+});
+
+spawnStarter(); spawnPile(); refreshPower();
+applySettings();
+buildMenuTab();
+refreshNetHud();
+frame(performance.now());
+window.__pcvfkBooted=true; clearTimeout(window.__bootTimer);
+</script>
+</body>
+</html>
